@@ -1,7 +1,7 @@
 import {
-  DefinitionPane, GrammarPane, InputPane, OutputPane, TargetLanguageDropdown, Transliteration,
-  normalizeDefinition, Cache, AudioCache, GrammarCache, Client, RequestSnapshot, isLocal, isMobile,
-  readTargetLanguage, writeTargetLanguage
+  DefinitionPane, GrammarPane, InputPane, OutputPane, TargetLanguageDropdown,
+  Transliteration, normalizeDefinition, Cache, AudioCache, GrammarCache,
+  Client, RequestSnapshot, isLocal, isMobile, readTargetLanguage, writeTargetLanguage
 } from "@piggo-translate/web"
 import { Languages, Model, WordDefinition, WordToken } from "@piggo-translate/core"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -9,9 +9,7 @@ import { createRoot } from "react-dom/client"
 
 const normalizeText = (text: string) => text.replace(/\s+/g, " ").trim()
 
-const isSpaceSeparatedLanguage = (language: string) =>
-  !language.toLowerCase().includes("chinese") &&
-  !language.toLowerCase().includes("japanese")
+const isSpaceSeparatedLanguage = (language: string) => !["chinese", "japanese"].includes(language.toLowerCase())
 
 const isChineseLanguage = (language: string) => language.toLowerCase().includes("chinese")
 
@@ -20,25 +18,16 @@ const noSpaceAfterPunctuationPattern = /^[(\[{«“‘]$/
 const audioPlaybackGain = 3
 
 const joinOutputTokens = (
-  tokens: WordToken[],
-  targetLanguage: string,
-  tokenKey: "word" | "literal",
-  options?: {
-    forceSpaceSeparated?: boolean
-  }
+  tokens: WordToken[], targetLanguage: string, tokenKey: "word" | "literal", options?: { forceSpaceSeparated?: boolean }
 ) => {
   const useSpaces = options?.forceSpaceSeparated || isSpaceSeparatedLanguage(targetLanguage)
 
   return tokens.reduce((result, token, tokenIndex) => {
     const tokenValue = token[tokenKey]
 
-    if (!tokenValue) {
-      return result
-    }
+    if (!tokenValue) return result
 
-    if (!result) {
-      return tokenValue
-    }
+    if (!result) return tokenValue
 
     if (!useSpaces) {
       return `${result}${tokenValue}`
