@@ -88,6 +88,12 @@ const OutputPane = ({
         selectable: !!selectionWord
       }
     })
+  const selectableWordCount = staticSelectableTokens.reduce((count, token) => {
+    const selectionWord = token.selectionWord ?? getSelectionWord(token.value)
+    const isSelectableToken = token.selectable ?? !!selectionWord
+    return isSelectableToken && !!selectionWord ? count + 1 : count
+  }, 0)
+  const shouldDisableSingleWordSelection = selectableWordCount === 1
 
   const selectableTokens = shouldUseSelectionTokens
     ? getAnimatedSelectableTokens(
@@ -362,7 +368,7 @@ const OutputPane = ({
           const tokenValue = token.value
           const isWhitespaceToken = !tokenValue.trim()
           const selectionWord = token.selectionWord ?? getSelectionWord(tokenValue)
-          const isSelectableToken = token.selectable ?? !!selectionWord
+          const isSelectableToken = (token.selectable ?? !!selectionWord) && !shouldDisableSingleWordSelection
           const tokenClassName = [
             "output-pane-text-token",
             isWhitespaceToken ? "output-pane-text-token-space" : "",
@@ -374,8 +380,8 @@ const OutputPane = ({
               <span
                 className={tokenClassName}
                 data-selection-word={isSelectableToken ? selectionWord : ""}
-                onMouseDown={(event) => {
-                  if (isWhitespaceToken || !isSelectableToken) {
+                onPointerDown={(event) => {
+                  if (isWhitespaceToken || !isSelectableToken || shouldDisableSingleWordSelection) {
                     return
                   }
 
@@ -402,7 +408,7 @@ const OutputPane = ({
               aria-label="Generate speech audio"
               title={isAudioLoading ? "Generating audio..." : "Speak"}
               disabled={!!isAudioLoading}
-              onMouseDown={(event) => {
+              onPointerDown={(event) => {
                 event.preventDefault()
               }}
               onClick={() => {
@@ -426,7 +432,7 @@ const OutputPane = ({
               className={`output-pane-action-button${didCopy ? " output-pane-copy-button-copied" : ""}${isCopySelected ? " output-pane-copy-button-selected" : ""}`}
               aria-label="Copy output text"
               title={didCopy ? "Copied" : "Copy"}
-              onMouseDown={(event) => {
+              onPointerDown={(event) => {
                 event.preventDefault()
               }}
               onClick={async () => {

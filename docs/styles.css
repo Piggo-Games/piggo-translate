@@ -436,11 +436,6 @@ main {
     border-color 500ms ease, padding 500ms ease;
 }
 
-.definition-pane .definition-pane-text-content {
-  text-align: left;
-  font-size: 1.3rem;
-}
-
 .input-pane-textarea::placeholder {
   color: #5c6672;
 }
@@ -482,7 +477,8 @@ main {
   line-height: 1.45;
   overflow-wrap: anywhere;
   word-break: break-word;
-  text-align: center;
+  text-align: left;
+  font-size: 1.3rem;
 }
 
 .definition-pane-value-fade-in {
@@ -678,13 +674,9 @@ main {
     transition: opacity 300ms ease, transform 300ms ease, background-color 120ms ease, color 300ms ease, visibility 0s linear 0s;
   }
 
-  .definition-pane .definition-pane-text-content {
-    font-size: 1rem;
-  }
-
   .transliteration-text.is-visible {
-    font-size: 1.1rem;
-    padding: 0.6rem;
+    font-size: 1rem;
+    padding: 0.4rem;
   }
 
   .transliteration-box {
@@ -706,6 +698,7 @@ main {
 
   .definition-pane-text-content {
     padding: 0.7rem;
+    font-size: 0.9rem;
   }
 
   .output-pane-actions {

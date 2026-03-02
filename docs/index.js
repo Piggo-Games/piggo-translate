@@ -17440,6 +17440,12 @@ var OutputPane = ({
       selectable: !!selectionWord
     };
   });
+  const selectableWordCount = staticSelectableTokens.reduce((count, token) => {
+    const selectionWord = token.selectionWord ?? getSelectionWord(token.value);
+    const isSelectableToken = token.selectable ?? !!selectionWord;
+    return isSelectableToken && !!selectionWord ? count + 1 : count;
+  }, 0);
+  const shouldDisableSingleWordSelection = selectableWordCount === 1;
   const selectableTokens = shouldUseSelectionTokens ? getAnimatedSelectableTokens(staticSelectableTokens, text, shouldUseWordJoiner, selectionWordJoiner) : staticSelectableTokens;
   import_react3.useEffect(() => {
     if (shouldAnimateOnMountRef.current) {
@@ -17640,7 +17646,7 @@ var OutputPane = ({
           const tokenValue = token.value;
           const isWhitespaceToken = !tokenValue.trim();
           const selectionWord = token.selectionWord ?? getSelectionWord(tokenValue);
-          const isSelectableToken = token.selectable ?? !!selectionWord;
+          const isSelectableToken = (token.selectable ?? !!selectionWord) && !shouldDisableSingleWordSelection;
           const tokenClassName = [
             "output-pane-text-token",
             isWhitespaceToken ? "output-pane-text-token-space" : "",
@@ -17651,8 +17657,8 @@ var OutputPane = ({
               /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("span", {
                 className: tokenClassName,
                 "data-selection-word": isSelectableToken ? selectionWord : "",
-                onMouseDown: (event) => {
-                  if (isWhitespaceToken || !isSelectableToken) {
+                onPointerDown: (event) => {
+                  if (isWhitespaceToken || !isSelectableToken || shouldDisableSingleWordSelection) {
                     return;
                   }
                   event.preventDefault();
@@ -17675,7 +17681,7 @@ var OutputPane = ({
             "aria-label": "Generate speech audio",
             title: isAudioLoading ? "Generating audio..." : "Speak",
             disabled: !!isAudioLoading,
-            onMouseDown: (event) => {
+            onPointerDown: (event) => {
               event.preventDefault();
             },
             onClick: () => {
@@ -17705,7 +17711,7 @@ var OutputPane = ({
             className: `output-pane-action-button${didCopy ? " output-pane-copy-button-copied" : ""}${isCopySelected ? " output-pane-copy-button-selected" : ""}`,
             "aria-label": "Copy output text",
             title: didCopy ? "Copied" : "Copy",
-            onMouseDown: (event) => {
+            onPointerDown: (event) => {
               event.preventDefault();
             },
             onClick: async () => {
@@ -17980,8 +17986,9 @@ var Client = (options) => {
   };
   let currentNormalizedInputText = "";
   let lastRequestedSignature = "";
-  let latestDefinitionsRequestId = "";
-  let lastDefinitionRequestSignature = "";
+  let definitionBatchId = 0;
+  const definitionsRequestById = new Map;
+  const definitionRequestSignaturesInFlight = new Set;
   let latestAudioRequestId = "";
   const clearReconnectTimeout = () => {
     if (reconnectTimeoutId === null) {
@@ -17991,8 +17998,10 @@ var Client = (options) => {
     reconnectTimeoutId = null;
   };
   const clearDefinitionRequestState = () => {
-    latestDefinitionsRequestId = "";
-    lastDefinitionRequestSignature = "";
+    definitionBatchId += 1;
+    definitionsRequestById.clear();
+    definitionRequestSignaturesInFlight.clear();
+    options.onDefinitionLoadingChange(false);
   };
   const clearAudioRequestState = () => {
     latestAudioRequestId = "";
@@ -18039,13 +18048,16 @@ var Client = (options) => {
       return;
     }
     const requestSignature = getDefinitionRequestSignature(normalizedWord, normalizedContext, requestInput.targetLanguage, requestInput.model);
-    if (lastDefinitionRequestSignature === requestSignature) {
+    if (definitionRequestSignaturesInFlight.has(requestSignature)) {
       return;
     }
     requestCounter += 1;
     const requestId = `${Date.now()}-${requestCounter}`;
-    latestDefinitionsRequestId = requestId;
-    lastDefinitionRequestSignature = requestSignature;
+    definitionsRequestById.set(requestId, {
+      signature: requestSignature,
+      batchId: definitionBatchId
+    });
+    definitionRequestSignaturesInFlight.add(requestSignature);
     options.onDefinitionLoadingChange(true);
     const request = {
       type: "translate.definitions.request",
@@ -18102,10 +18114,16 @@ var Client = (options) => {
         return;
       }
       if (message.type === "translate.definitions.success") {
-        if (message.requestId !== latestDefinitionsRequestId) {
+        const requestState = definitionsRequestById.get(message.requestId);
+        if (!requestState || requestState.batchId !== definitionBatchId) {
           return;
         }
+        definitionsRequestById.delete(message.requestId);
+        definitionRequestSignaturesInFlight.delete(requestState.signature);
         options.onDefinitionsSuccess(message.definitions);
+        if (!definitionsRequestById.size) {
+          options.onDefinitionLoadingChange(false);
+        }
         return;
       }
       if (message.type === "translate.audio.success") {
@@ -18116,8 +18134,16 @@ var Client = (options) => {
         options.onAudioSuccess(message.audioBase64, message.mimeType);
         return;
       }
-      if (message.type === "translate.error" && message.requestId && message.requestId === latestDefinitionsRequestId) {
+      if (message.type === "translate.error" && message.requestId && definitionsRequestById.has(message.requestId)) {
+        const requestState = definitionsRequestById.get(message.requestId);
+        if (requestState) {
+          definitionRequestSignaturesInFlight.delete(requestState.signature);
+        }
+        definitionsRequestById.delete(message.requestId);
         options.onDefinitionsError();
+        if (!definitionsRequestById.size) {
+          options.onDefinitionLoadingChange(false);
+        }
         return;
       }
       if (message.type === "translate.error" && message.requestId && message.requestId === latestAudioRequestId) {
@@ -18277,6 +18303,7 @@ var import_client = __toESM(require_client(), 1);
 var jsx_dev_runtime7 = __toESM(require_jsx_dev_runtime(), 1);
 var normalizeText3 = (text) => text.replace(/\s+/g, " ").trim();
 var isSpaceSeparatedLanguage = (language) => !language.toLowerCase().includes("chinese") && !language.toLowerCase().includes("japanese");
+var isChineseLanguage = (language) => language.toLowerCase().includes("chinese");
 var noSpaceBeforePunctuationPattern = /^[.,!?;:%)\]\}»”’、。，！？；：]$/;
 var noSpaceAfterPunctuationPattern = /^[(\[{«“‘]$/;
 var audioPlaybackGain = 3;
@@ -18317,6 +18344,20 @@ var getAutoDefinitionWords = (tokens) => {
   const selectableWords = tokens.filter(({ punctuation }) => !punctuation).map(({ word }) => word).filter((word) => !!normalizeDefinition(word));
   return selectableWords.length === 1 ? selectableWords : [];
 };
+var getDefinitionSelectionWords = (selectedWords, targetLanguage) => {
+  const normalizedSelectedWords = selectedWords.map((word) => normalizeDefinition(word)).filter(Boolean);
+  if (!isChineseLanguage(targetLanguage)) {
+    return Array.from(new Set(normalizedSelectedWords));
+  }
+  const expandedWords = normalizedSelectedWords.flatMap((word) => {
+    const characters = Array.from(word);
+    if (characters.length < 2) {
+      return [word];
+    }
+    return [word, ...characters];
+  });
+  return Array.from(new Set(expandedWords));
+};
 var App = () => {
   const [inputText, setInputText] = import_react6.useState("");
   const [outputWords, setOutputWords] = import_react6.useState([]);
@@ -18341,7 +18382,7 @@ var App = () => {
   const clientRef = import_react6.useRef(null);
   const inputTextareaRef = import_react6.useRef(null);
   const pendingInputSelectionRef = import_react6.useRef(null);
-  const selectedOutputWordsRef = import_react6.useRef([]);
+  const selectedDefinitionWordsRef = import_react6.useRef([]);
   const definitionContextRef = import_react6.useRef("");
   const targetLanguageRef = import_react6.useRef(targetLanguage);
   const selectedModelRef = import_react6.useRef(selectedModel);
@@ -18473,9 +18514,7 @@ var App = () => {
       const marginTop = Math.max(targetTop - headerBottom - 40, 0);
       paneStack.style.marginTop = `${marginTop}px`;
     };
-    const resizeObserver = new ResizeObserver(() => {
-      updatePaneStackMarginTop();
-    });
+    const resizeObserver = new ResizeObserver(updatePaneStackMarginTop);
     resizeObserver.observe(paneStack);
     return () => {
       resizeObserver.disconnect();
@@ -18484,7 +18523,36 @@ var App = () => {
   const normalizedInputText = normalizeText3(inputText);
   const hasInputText = !!normalizedInputText;
   const hasOutputWords = outputWords.length > 0;
+  const outputText = joinOutputTokens(outputWords, targetLanguage, "word");
+  const outputLiteralText = joinOutputTokens(outputWords, targetLanguage, "literal", {
+    forceSpaceSeparated: true
+  });
+  const definitionSelectionWords = import_react6.useMemo(() => getDefinitionSelectionWords(selectedOutputWords, targetLanguage), [selectedOutputWords, targetLanguage]);
+  const selectedLanguageOption = Languages.find((language) => language.value === targetLanguage);
   const isSpinnerVisible = isTranslating && !!latestRequestSnapshot.id && normalizedInputText === latestRequestSnapshot.normalizedInputText;
+  const resetTranslationState = (clearOutputWords) => {
+    if (clearOutputWords) {
+      setOutputWords([]);
+      setSelectedOutputWords([]);
+    }
+    setWordDefinitions([]);
+    setIsDefinitionLoading(false);
+    setIsAudioLoading(false);
+    clearAudioPlayback();
+    setErrorText("");
+  };
+  const clearAllRequestState = (clearOutputWords) => {
+    resetTranslationState(clearOutputWords);
+    setDebouncedRequest(null);
+    clientRef.current?.clearAllRequestState();
+  };
+  const setDebouncedTranslateRequest = (text) => {
+    setDebouncedRequest({
+      text,
+      targetLanguage,
+      model: selectedModel
+    });
+  };
   import_react6.useEffect(() => {
     const client = Client({
       onSocketOpenChange: setIsSocketOpen,
@@ -18515,19 +18583,8 @@ var App = () => {
       },
       onDefinitionsSuccess: (definitions) => {
         CacheRef.current.writeDefinitionsToCache(definitions);
-        const selectedWords = selectedOutputWordsRef.current;
+        const selectedWords = selectedDefinitionWordsRef.current;
         setWordDefinitions(CacheRef.current.getCachedDefinitions(selectedWords));
-        const missingWords = CacheRef.current.getMissingDefinitionWords(selectedWords);
-        if (missingWords.length) {
-          client.sendDefinitionsRequest({
-            word: missingWords[0],
-            context: definitionContextRef.current,
-            targetLanguage: targetLanguageRef.current,
-            model: selectedModelRef.current
-          });
-        } else {
-          setIsDefinitionLoading(false);
-        }
       },
       onDefinitionsError: () => {
         setWordDefinitions([]);
@@ -18564,9 +18621,6 @@ var App = () => {
   import_react6.useEffect(() => {
     selectedModelRef.current = selectedModel;
   }, [selectedModel]);
-  import_react6.useEffect(() => {
-    selectedOutputWordsRef.current = selectedOutputWords;
-  }, [selectedOutputWords]);
   import_react6.useEffect(() => {
     let isDisposed = false;
     (async () => {
@@ -18611,9 +18665,7 @@ var App = () => {
         return;
       }
       const activeElement = document.activeElement;
-      if (activeElement === textarea)
-        return;
-      if (isEditableElement(activeElement))
+      if (activeElement === textarea || isEditableElement(activeElement))
         return;
       event.preventDefault();
       const selectionStart = textarea.selectionStart ?? textarea.value.length;
@@ -18636,50 +18688,27 @@ var App = () => {
     };
   }, []);
   import_react6.useEffect(() => {
-    const trimmedText = inputText.trim();
+    const trimmedInputText = inputText.trim();
     clientRef.current?.setCurrentNormalizedInputText(normalizedInputText);
-    if (!trimmedText) {
-      setOutputWords([]);
-      setSelectedOutputWords([]);
-      setWordDefinitions([]);
-      setIsDefinitionLoading(false);
-      setIsAudioLoading(false);
-      clearAudioPlayback();
-      setErrorText("");
-      setDebouncedRequest(null);
-      clientRef.current?.clearAllRequestState();
+    if (!trimmedInputText) {
+      clearAllRequestState(true);
       return;
     }
     const timeoutId = window.setTimeout(() => {
-      setDebouncedRequest({
-        text: trimmedText,
-        targetLanguage,
-        model: selectedModel
-      });
+      setDebouncedTranslateRequest(trimmedInputText);
     }, isMobile() ? 1000 : 400);
     return () => {
       window.clearTimeout(timeoutId);
     };
   }, [inputText, normalizedInputText]);
   import_react6.useEffect(() => {
-    setOutputWords([]);
-    setSelectedOutputWords([]);
-    setWordDefinitions([]);
-    setIsDefinitionLoading(false);
-    setIsAudioLoading(false);
-    clearAudioPlayback();
-    setErrorText("");
-    const trimmedText = inputText.trim();
-    if (!trimmedText) {
-      setDebouncedRequest(null);
-      clientRef.current?.clearAllRequestState();
+    resetTranslationState(true);
+    const trimmedInputText = inputText.trim();
+    if (!trimmedInputText) {
+      clearAllRequestState(false);
       return;
     }
-    setDebouncedRequest({
-      text: trimmedText,
-      targetLanguage,
-      model: selectedModel
-    });
+    setDebouncedTranslateRequest(trimmedInputText);
   }, [targetLanguage]);
   import_react6.useEffect(() => {
     if (!debouncedRequest || !isSocketOpen) {
@@ -18688,17 +18717,16 @@ var App = () => {
     clientRef.current?.sendTranslateRequest(debouncedRequest);
   }, [debouncedRequest, isSocketOpen]);
   import_react6.useEffect(() => {
-    if (!selectedOutputWords.length) {
+    selectedDefinitionWordsRef.current = definitionSelectionWords;
+    if (!definitionSelectionWords.length) {
       setWordDefinitions([]);
       setIsDefinitionLoading(false);
       clientRef.current?.clearDefinitionRequestState();
       return;
     }
-    const uniqueWords = Array.from(new Set(selectedOutputWords));
-    const cachedDefinitions = CacheRef.current.getCachedDefinitions(uniqueWords);
+    const cachedDefinitions = CacheRef.current.getCachedDefinitions(definitionSelectionWords);
     setWordDefinitions(cachedDefinitions);
-    const missingWords = CacheRef.current.getMissingDefinitionWords(uniqueWords);
-    const definitionContext = joinOutputTokens(outputWords, targetLanguage, "word");
+    const missingWords = CacheRef.current.getMissingDefinitionWords(definitionSelectionWords);
     if (!missingWords.length) {
       setIsDefinitionLoading(false);
       clientRef.current?.clearDefinitionRequestState();
@@ -18706,27 +18734,27 @@ var App = () => {
     }
     if (!isSocketOpen)
       return;
-    definitionContextRef.current = definitionContext;
-    clientRef.current?.sendDefinitionsRequest({
-      word: missingWords[0],
-      context: definitionContext,
-      targetLanguage,
-      model: selectedModel
+    definitionContextRef.current = outputText;
+    missingWords.forEach((word) => {
+      clientRef.current?.sendDefinitionsRequest({
+        word,
+        context: outputText,
+        targetLanguage,
+        model: selectedModel
+      });
     });
-  }, [outputWords, selectedOutputWords, isSocketOpen, selectedModel, targetLanguage]);
+  }, [definitionSelectionWords, isSocketOpen, outputText, selectedModel, targetLanguage]);
   const definitionByWord = new Map(wordDefinitions.map((entry) => [normalizeDefinition(entry.word), entry.definition]));
-  const transliterationByWord = new Map;
-  outputWords.filter(({ punctuation }) => !punctuation).forEach(({ word, literal }) => {
-    const normalizedWord = normalizeDefinition(word);
-    const transliterationKey = normalizedWord || word;
-    if (transliterationByWord.has(transliterationKey)) {
-      return;
+  const transliterationByWord = outputWords.reduce((transliterations, { word, punctuation, literal }) => {
+    if (punctuation || !literal) {
+      return transliterations;
     }
-    if (literal) {
-      transliterationByWord.set(transliterationKey, literal);
+    const transliterationKey = normalizeDefinition(word) || word;
+    if (!transliterations.has(transliterationKey)) {
+      transliterations.set(transliterationKey, literal);
     }
-  });
-  const selectedLanguageOption = Languages.find((language) => language.value === targetLanguage);
+    return transliterations;
+  }, new Map);
   return /* @__PURE__ */ jsx_dev_runtime7.jsxDEV("main", {
     children: [
       /* @__PURE__ */ jsx_dev_runtime7.jsxDEV("section", {
@@ -18789,7 +18817,7 @@ var App = () => {
             title: "Translated Output",
             showHeader: false,
             ariaLabel: "Translated text",
-            value: joinOutputTokens(outputWords, targetLanguage, "word"),
+            value: outputText,
             selectionTokens: outputWords.map((token) => ({
               value: token.word,
               selectionWord: token.word,
@@ -18798,16 +18826,15 @@ var App = () => {
             selectionWordJoiner: isSpaceSeparatedLanguage(targetLanguage) ? " " : "",
             animateOnMount: true,
             footer: selectedLanguageOption?.transliterate ? /* @__PURE__ */ jsx_dev_runtime7.jsxDEV(Transliteration, {
-              value: joinOutputTokens(outputWords, targetLanguage, "literal", { forceSpaceSeparated: true }),
+              value: outputLiteralText,
               isVisible: isTransliterationVisible,
               onToggle: () => setIsTransliterationVisible((value) => !value)
             }, undefined, false, undefined, this) : null,
             enableCopyButton: true,
-            copyValue: joinOutputTokens(outputWords, targetLanguage, "word"),
+            copyValue: outputText,
             enableAudioButton: !isAudioPlaying,
             isAudioLoading,
             onAudioClick: () => {
-              const outputText = joinOutputTokens(outputWords, targetLanguage, "word");
               if (!outputText.trim()) {
                 return;
               }
@@ -18824,11 +18851,9 @@ var App = () => {
               });
             },
             className: "fade-in",
-            onSelectionChange: (selectionWords) => {
-              setSelectedOutputWords(selectionWords);
-            }
+            onSelectionChange: setSelectedOutputWords
           }, undefined, false, undefined, this) : null,
-          selectedOutputWords.map((word, index) => {
+          definitionSelectionWords.map((word, index) => {
             const normalizedWord = normalizeDefinition(word);
             const definition = definitionByWord.get(normalizedWord) || "";
             const transliterationKey = normalizedWord || word;
@@ -18851,7 +18876,7 @@ var App = () => {
       isLocal() && !isMobile() && /* @__PURE__ */ jsx_dev_runtime7.jsxDEV("span", {
         className: "app-version",
         "aria-label": "App version",
-        children: "v0.3.5"
+        children: "v0.3.6"
       }, undefined, false, undefined, this)
     ]
   }, undefined, true, undefined, this);
