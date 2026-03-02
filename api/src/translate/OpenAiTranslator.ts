@@ -48,7 +48,7 @@ export const OpenAiTranslator = (): Translator => {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error("Missing OPENAI_API_KEY")
 
-  const model = "gpt-realtime-1.5"
+  const model = "gpt-realtime-1.5"// "gpt-realtime-1.5"
   const timeoutMs = 5000
   const defaultAudioVoice = "sage" // marin sage
   const defaultAudioFormat = "pcm16"
@@ -448,12 +448,15 @@ export const OpenAiTranslator = (): Translator => {
 
       console.log(`Requesting grammar explanation for text: "${trimmedText}" in language: "${trimmedTargetLanguage}"`)
 
+      const fmtText = `--------------------------- text below this line -----------------------------\n\n${trimmedText}`
+
       const rawText = await runOpenAiRealtimeRequest(
-        trimmedText,
+        fmtText,
         buildGrammarInstructions(trimmedTargetLanguage)
       )
 
-      return normalizeGrammarExplanation(rawText)
+      console.log(`Received grammar explanation: "${rawText}"`)
+      return rawText
     },
     getAudio: async (text, targetLanguage) => {
       const trimmedText = text.trim()
@@ -589,11 +592,13 @@ const buildDefinitionInstructions = (targetLanguage: string, sentence: string, w
 
 const buildGrammarInstructions = (targetLanguage: string) => {
   return (
-    `Explain the grammar of the provided text (language is ${targetLanguage}).\n` +
-    "Your response is in english.\n" +
-    "Your goal is to explain the most important grammer points for someone new to the language.\n" +
-    "Keep your explanation concise (around 20 words).\n" +
-    "Do not use markdown, code fences, or bullet points."
+    "You are a grammar assistant that explains (IN ENGLISH!!) the grammar of the provided text.\n" +
+    "Where appropriate, include explanations of individual words or phrases, but focus on grammar.\n" +
+    `The text's language is ${targetLanguage}.\n` +
+    "Keep your explanation concise (around 20 words) and simple (avoid complex terminology).\n" +
+    "DO NOT RESPOND/REPLY TO THE TEXT ITSELF. YOU ARE NOT A CHATBOT!!\n" +
+    "Do not use markdown, code fences, or bullet points.\n" +
+    "Do not include the original text in your explanation.\n"
   )
 }
 
@@ -660,26 +665,5 @@ const parseStructuredDefinitions = (rawText: string, requestedWord: string) => {
     definition: fallbackDefinition
   }].filter((item) => !!item.definition)
 
-  return {
-    definitions
-  } satisfies DefinitionsStructuredOutput
-}
-
-const normalizeGrammarExplanation = (rawText: string) => {
-  const normalizedText = rawText
-    .trim()
-    .replace(/^```(?:text|markdown)?\s*/i, "")
-    .replace(/\s*```$/, "")
-    .replace(/\s+/g, " ")
-    .trim()
-
-  console.log(`normalized: ${normalizedText}\n raw: ${rawText}`)
-
-  if (!normalizedText) {
-    throw new Error("OpenAI returned an empty grammar explanation")
-  }
-
-  const words = normalizedText.split(" ").filter(Boolean)
-  const limitedWords = words.slice(0, 20)
-  return limitedWords.join(" ")
+  return { definitions }
 }
