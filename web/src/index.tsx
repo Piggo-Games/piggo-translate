@@ -1,6 +1,6 @@
 import {
   DefinitionPane, GrammarPane, InputPane, OutputPane, TargetLanguageDropdown, Transliteration,
-  normalizeDefinition, Cache, AudioCache, Client, RequestSnapshot, isLocal, isMobile,
+  normalizeDefinition, Cache, AudioCache, GrammarCache, Client, RequestSnapshot, isLocal, isMobile,
   readTargetLanguage, writeTargetLanguage
 } from "@piggo-translate/web"
 import { Languages, Model, WordDefinition, WordToken } from "@piggo-translate/core"
@@ -148,6 +148,7 @@ const App = () => {
   const selectedModelRef = useRef(selectedModel)
   const CacheRef = useRef(Cache())
   const audioCacheRef = useRef(AudioCache())
+  const grammarCacheRef = useRef(GrammarCache())
   const headerSectionRef = useRef<HTMLElement | null>(null)
   const paneStackRef = useRef<HTMLElement | null>(null)
   const audioSourceUrlRef = useRef("")
@@ -156,6 +157,7 @@ const App = () => {
   const audioGainNodeRef = useRef<GainNode | null>(null)
   const activeAudioSourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null)
   const pendingAudioRequestTextRef = useRef("")
+  const pendingGrammarRequestTextRef = useRef("")
 
   const clearAudioPlayback = () => {
     setIsAudioPlaying(false)
@@ -344,6 +346,7 @@ const App = () => {
     setIsDefinitionLoading(false)
     setGrammarExplanation("")
     setIsGrammarLoading(false)
+    pendingGrammarRequestTextRef.current = ""
     setIsAudioLoading(false)
     clearAudioPlayback()
     setErrorText("")
@@ -407,9 +410,18 @@ const App = () => {
       },
       onGrammarLoadingChange: setIsGrammarLoading,
       onGrammarSuccess: (grammar) => {
+        if (pendingGrammarRequestTextRef.current) {
+          grammarCacheRef.current.set({
+            text: pendingGrammarRequestTextRef.current,
+            grammar
+          })
+        }
+
+        pendingGrammarRequestTextRef.current = ""
         setGrammarExplanation(grammar.trim())
       },
       onGrammarError: () => {
+        pendingGrammarRequestTextRef.current = ""
         setGrammarExplanation("")
         setIsGrammarLoading(false)
       },
@@ -616,7 +628,18 @@ const App = () => {
 
   useEffect(() => {
     if (!shouldShowGrammarPane) {
+      pendingGrammarRequestTextRef.current = ""
       setGrammarExplanation("")
+      setIsGrammarLoading(false)
+      clientRef.current?.clearGrammarRequestState()
+      return
+    }
+
+    const cachedGrammar = grammarCacheRef.current.get(outputText)
+
+    if (cachedGrammar) {
+      pendingGrammarRequestTextRef.current = ""
+      setGrammarExplanation(cachedGrammar)
       setIsGrammarLoading(false)
       clientRef.current?.clearGrammarRequestState()
       return
@@ -626,6 +649,7 @@ const App = () => {
       return
     }
 
+    pendingGrammarRequestTextRef.current = outputText
     clientRef.current?.sendGrammarRequest({
       text: outputText,
       targetLanguage,
