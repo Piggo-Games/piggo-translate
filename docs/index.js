@@ -17330,9 +17330,8 @@ var InputPane = ({ id, title, placeholder, ariaLabel, value, maxLength, classNam
   }, [value]);
   import_react2.useLayoutEffect(() => {
     const textarea = localTextareaRef.current;
-    if (!textarea) {
+    if (!textarea)
       return;
-    }
     textarea.style.height = "auto";
     textarea.style.height = `${textarea.scrollHeight}px`;
   }, [text]);
@@ -18852,7 +18851,7 @@ var App = () => {
       isLocal() && !isMobile() && /* @__PURE__ */ jsx_dev_runtime7.jsxDEV("span", {
         className: "app-version",
         "aria-label": "App version",
-        children: "v0.3.4"
+        children: "v0.3.5"
       }, undefined, false, undefined, this)
     ]
   }, undefined, true, undefined, this);
