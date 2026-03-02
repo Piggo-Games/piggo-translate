@@ -341,18 +341,6 @@ const App = () => {
         CacheRef.current.writeDefinitionsToCache(definitions)
         const selectedWords = selectedDefinitionWordsRef.current
         setWordDefinitions(CacheRef.current.getCachedDefinitions(selectedWords))
-        const missingWords = CacheRef.current.getMissingDefinitionWords(selectedWords)
-
-        if (missingWords.length) {
-          client.sendDefinitionsRequest({
-            word: missingWords[0],
-            context: definitionContextRef.current,
-            targetLanguage: targetLanguageRef.current,
-            model: selectedModelRef.current
-          })
-        } else {
-          setIsDefinitionLoading(false)
-        }
       },
       onDefinitionsError: () => {
         setWordDefinitions([])
@@ -577,11 +565,13 @@ const App = () => {
     if (!isSocketOpen) return
 
     definitionContextRef.current = definitionContext
-    clientRef.current?.sendDefinitionsRequest({
-      word: missingWords[0],
-      context: definitionContext,
-      targetLanguage,
-      model: selectedModel
+    missingWords.forEach((word) => {
+      clientRef.current?.sendDefinitionsRequest({
+        word,
+        context: definitionContext,
+        targetLanguage,
+        model: selectedModel
+      })
     })
   }, [outputWords, selectedOutputWords, isSocketOpen, selectedModel, targetLanguage])
 

@@ -78,8 +78,9 @@ export const Client = (options: ClientOptions): Client => {
   }
   let currentNormalizedInputText = ""
   let lastRequestedSignature = ""
-  let latestDefinitionsRequestId = ""
-  let lastDefinitionRequestSignature = ""
+  let definitionBatchId = 0
+  const definitionsRequestById = new Map<string, { signature: string, batchId: number }>()
+  const definitionRequestSignaturesInFlight = new Set<string>()
   let latestAudioRequestId = ""
 
   const clearReconnectTimeout = () => {
@@ -92,8 +93,10 @@ export const Client = (options: ClientOptions): Client => {
   }
 
   const clearDefinitionRequestState = () => {
-    latestDefinitionsRequestId = ""
-    lastDefinitionRequestSignature = ""
+    definitionBatchId += 1
+    definitionsRequestById.clear()
+    definitionRequestSignaturesInFlight.clear()
+    options.onDefinitionLoadingChange(false)
   }
 
   const clearAudioRequestState = () => {
@@ -158,14 +161,17 @@ export const Client = (options: ClientOptions): Client => {
       requestInput.model
     )
 
-    if (lastDefinitionRequestSignature === requestSignature) {
+    if (definitionRequestSignaturesInFlight.has(requestSignature)) {
       return
     }
 
     requestCounter += 1
     const requestId = `${Date.now()}-${requestCounter}`
-    latestDefinitionsRequestId = requestId
-    lastDefinitionRequestSignature = requestSignature
+    definitionsRequestById.set(requestId, {
+      signature: requestSignature,
+      batchId: definitionBatchId
+    })
+    definitionRequestSignaturesInFlight.add(requestSignature)
     options.onDefinitionLoadingChange(true)
 
     const request: WsDefinitionsRequest = {
@@ -238,11 +244,19 @@ export const Client = (options: ClientOptions): Client => {
       }
 
       if (message.type === "translate.definitions.success") {
-        if (message.requestId !== latestDefinitionsRequestId) {
+        const requestState = definitionsRequestById.get(message.requestId)
+
+        if (!requestState || requestState.batchId !== definitionBatchId) {
           return
         }
 
+        definitionsRequestById.delete(message.requestId)
+        definitionRequestSignaturesInFlight.delete(requestState.signature)
         options.onDefinitionsSuccess(message.definitions)
+
+        if (!definitionsRequestById.size) {
+          options.onDefinitionLoadingChange(false)
+        }
         return
       }
 
@@ -259,9 +273,20 @@ export const Client = (options: ClientOptions): Client => {
       if (
         message.type === "translate.error" &&
         message.requestId &&
-        message.requestId === latestDefinitionsRequestId
+        definitionsRequestById.has(message.requestId)
       ) {
+        const requestState = definitionsRequestById.get(message.requestId)
+
+        if (requestState) {
+          definitionRequestSignaturesInFlight.delete(requestState.signature)
+        }
+
+        definitionsRequestById.delete(message.requestId)
         options.onDefinitionsError()
+
+        if (!definitionsRequestById.size) {
+          options.onDefinitionLoadingChange(false)
+        }
         return
       }
 
