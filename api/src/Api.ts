@@ -1,6 +1,4 @@
-import { Model } from "@piggo-translate/core"
-import { httpJson, httpText } from "./utils/HttpUtils"
-import { OpenAiTranslator } from "./translate/OpenAiTranslator"
+import { httpJson, httpText, OpenAiTranslator } from "@piggo-translate/api"
 
 const logServerError = (context: string, error: unknown) => {
   if (error instanceof Error) {
@@ -14,21 +12,13 @@ const logServerError = (context: string, error: unknown) => {
   console.error(`[api] ${context}:`, error)
 }
 
-const normalizeTranslateInput = (
-  text: unknown,
-  targetLanguage: unknown,
-  model?: unknown
-) => {
+const normalizeTranslateInput = (text: unknown, targetLanguage: unknown) => {
   const normalizedText = typeof text === "string" ? text.trim() : ""
-  const normalizedTargetLanguage =
-    typeof targetLanguage === "string" ? targetLanguage.trim() : ""
-  const normalizedModel: Model =
-    model === "anthropic" ? "anthropic" : "openai"
+  const normalizedTargetLanguage = typeof targetLanguage === "string" ? targetLanguage.trim() : ""
 
   return {
     text: normalizedText,
-    targetLanguage: normalizedTargetLanguage,
-    model: normalizedModel
+    targetLanguage: normalizedTargetLanguage
   }
 }
 
@@ -37,26 +27,22 @@ const parseTranslateWsMessage = (rawMessage: unknown): { error: string } | ({
   requestId: string
   text: string
   targetLanguage: string
-  model: Model
 } | {
   type: "translate.definitions.request"
   requestId: string
   word: string
   context: string
   targetLanguage: string
-  model: Model
 } | {
   type: "translate.audio.request"
   requestId: string
   text: string
   targetLanguage: string
-  model: Model
 } | {
   type: "translate.grammar.request"
   requestId: string
   text: string
   targetLanguage: string
-  model: Model
 }) => {
   if (!rawMessage || typeof rawMessage !== "object") {
     return {
@@ -69,7 +55,6 @@ const parseTranslateWsMessage = (rawMessage: unknown): { error: string } | ({
     requestId?: unknown
     text?: unknown
     targetLanguage?: unknown
-    model?: unknown
     word?: unknown
     context?: unknown
   }
@@ -93,7 +78,7 @@ const parseTranslateWsMessage = (rawMessage: unknown): { error: string } | ({
 
   if (message.type === "translate.request") {
     const { text, targetLanguage } = normalizeTranslateInput(
-      message.text, message.targetLanguage, message.model
+      message.text, message.targetLanguage
     )
 
     if (!text) {
@@ -112,16 +97,14 @@ const parseTranslateWsMessage = (rawMessage: unknown): { error: string } | ({
       type: "translate.request",
       requestId: message.requestId.trim(),
       text,
-      targetLanguage,
-      model: message.model === "anthropic" ? "anthropic" : "openai"
+      targetLanguage
     }
   }
 
   if (message.type === "translate.audio.request") {
     const { text, targetLanguage } = normalizeTranslateInput(
       message.text,
-      message.targetLanguage,
-      message.model
+      message.targetLanguage
     )
 
     if (!text) {
@@ -140,16 +123,14 @@ const parseTranslateWsMessage = (rawMessage: unknown): { error: string } | ({
       type: "translate.audio.request",
       requestId: message.requestId.trim(),
       text,
-      targetLanguage,
-      model: message.model === "anthropic" ? "anthropic" : "openai"
+      targetLanguage
     }
   }
 
   if (message.type === "translate.grammar.request") {
     const { text, targetLanguage } = normalizeTranslateInput(
       message.text,
-      message.targetLanguage,
-      message.model
+      message.targetLanguage
     )
 
     if (!text) {
@@ -168,8 +149,7 @@ const parseTranslateWsMessage = (rawMessage: unknown): { error: string } | ({
       type: "translate.grammar.request",
       requestId: message.requestId.trim(),
       text,
-      targetLanguage,
-      model: message.model === "anthropic" ? "anthropic" : "openai"
+      targetLanguage
     }
   }
 
@@ -201,8 +181,7 @@ const parseTranslateWsMessage = (rawMessage: unknown): { error: string } | ({
     requestId: message.requestId.trim(),
     word,
     context,
-    targetLanguage: normalizedTargetLanguage,
-    model: message.model === "anthropic" ? "anthropic" : "openai"
+    targetLanguage: normalizedTargetLanguage
   }
 }
 
@@ -213,34 +192,11 @@ const parseWsJsonMessage = (message: string | Uint8Array | Buffer) => {
   return JSON.parse(rawText)
 }
 
+const stripWhitespace = (value: string) => value.replace(/\s/g, "")
+
 export const createApiServer = () => {
 
-  // const anthropicTranslator = AnthropicTranslator()
   const openAiTranslator = OpenAiTranslator()
-
-  const translateWithModel = async (model: Model, text: string, targetLanguage: string) => {
-    const translator = model === "anthropic" ? openAiTranslator : openAiTranslator
-
-    return translator.translate(text, targetLanguage)
-  }
-
-  const getDefinitionsWithModel = async (model: Model, word: string, targetLanguage: string, context: string) => {
-    const translator = model === "anthropic" ? openAiTranslator : openAiTranslator
-
-    return translator.getDefinitions(word, targetLanguage, context)
-  }
-
-  const getAudioWithModel = async (model: Model, text: string, targetLanguage: string) => {
-    const translator = model === "anthropic" ? openAiTranslator : openAiTranslator
-
-    return translator.getAudio(text, targetLanguage)
-  }
-
-  const getGrammarWithModel = async (model: Model, text: string, targetLanguage: string) => {
-    const translator = model === "anthropic" ? openAiTranslator : openAiTranslator
-
-    return translator.getGrammar(text, targetLanguage)
-  }
 
   const server = Bun.serve({
     port: 5001,
@@ -297,8 +253,7 @@ export const createApiServer = () => {
 
         if (parsedMessage.type === "translate.request") {
           try {
-            const translatedOutput = await translateWithModel(
-              parsedMessage.model,
+            const translatedOutput = await openAiTranslator.translate(
               parsedMessage.text,
               parsedMessage.targetLanguage
             )
@@ -306,7 +261,10 @@ export const createApiServer = () => {
             ws.send(JSON.stringify({
               type: "translate.success",
               requestId: parsedMessage.requestId,
-              words: translatedOutput.words
+              words: translatedOutput.words.map((word) => ({
+                ...word,
+                literal: stripWhitespace(word.literal)
+              }))
             }))
           } catch (error) {
             logServerError(`WS translate ${parsedMessage.requestId}`, error)
@@ -326,8 +284,7 @@ export const createApiServer = () => {
 
         if (parsedMessage.type === "translate.audio.request") {
           try {
-            const audioBlob = await getAudioWithModel(
-              parsedMessage.model,
+            const audioBlob = await openAiTranslator.getAudio(
               parsedMessage.text,
               parsedMessage.targetLanguage
             )
@@ -337,7 +294,7 @@ export const createApiServer = () => {
               type: "translate.audio.success",
               requestId: parsedMessage.requestId,
               audioBase64: audioBuffer.toString("base64"),
-              mimeType: audioBlob.type || "audio/pcm"
+              mimeType: "audio/wav"
             }))
           } catch (error) {
             logServerError(`WS audio ${parsedMessage.requestId}`, error)
@@ -357,8 +314,7 @@ export const createApiServer = () => {
 
         if (parsedMessage.type === "translate.grammar.request") {
           try {
-            const grammar = await getGrammarWithModel(
-              parsedMessage.model,
+            const grammar = await openAiTranslator.getGrammar(
               parsedMessage.text,
               parsedMessage.targetLanguage
             )
@@ -385,8 +341,7 @@ export const createApiServer = () => {
         }
 
         try {
-          const definitions = await getDefinitionsWithModel(
-            parsedMessage.model,
+          const definitions = await openAiTranslator.getDefinitions(
             parsedMessage.word,
             parsedMessage.targetLanguage,
             parsedMessage.context

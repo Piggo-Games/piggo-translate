@@ -1,13 +1,11 @@
 import {
   DefinitionPane, GrammarPane, InputPane, OutputPane, TargetLanguageDropdown,
-  Transliteration, normalizeDefinition, Cache, AudioCache, GrammarCache,
+  Transliteration, normalizeText, normalizeDefinition, Cache, AudioCache, GrammarCache,
   Client, RequestSnapshot, isLocal, isMobile, readTargetLanguage, writeTargetLanguage
 } from "@piggo-translate/web"
-import { Languages, Model, WordDefinition, WordToken } from "@piggo-translate/core"
+import { Languages, WordDefinition, WordToken, splitPinyin } from "@piggo-translate/core"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
-
-const normalizeText = (text: string) => text.replace(/\s+/g, " ").trim()
 
 const isSpaceSeparatedLanguage = (language: string) => ![
   "chinese (simplified)", "japanese"
@@ -19,13 +17,23 @@ const noSpaceBeforePunctuationPattern = /^[.,!?;:%)\]\}»”’、。，！？�
 const noSpaceAfterPunctuationPattern = /^[(\[{«“‘]$/
 const audioPlaybackGain = 3
 
+const getFormattedLiteral = (literal: string, targetLanguage: string) => {
+  if (!isChineseLanguage(targetLanguage)) return literal
+
+  const splitLiteral = splitPinyin(literal)
+  return splitLiteral.length > 1 ? splitLiteral.join(" ") : literal
+}
+
 const joinOutputTokens = (
-  tokens: WordToken[], targetLanguage: string, tokenKey: "word" | "literal", options?: { forceSpaceSeparated?: boolean }
+  tokens: WordToken[], targetLanguage: string, tokenKey: "word" | "literal", options?: {
+    forceSpaceSeparated?: boolean
+  }
 ) => {
   const useSpaces = options?.forceSpaceSeparated || isSpaceSeparatedLanguage(targetLanguage)
 
   return tokens.reduce((result, token, tokenIndex) => {
-    const tokenValue = token[tokenKey]
+    const rawTokenValue = token[tokenKey]
+    const tokenValue = rawTokenValue
 
     if (!tokenValue) return result
 
@@ -91,6 +99,47 @@ const getDefinitionSelectionWords = (selectedWords: string[], targetLanguage: st
   return Array.from(new Set(expandedWords))
 }
 
+const getCharacterTransliteration = (
+  character: string,
+  parentWord: string,
+  transliterations: Map<string, string>
+) => {
+  if (Array.from(character).length !== 1) {
+    return ""
+  }
+
+  const transliteration = transliterations.get(parentWord)
+  if (!transliteration) {
+    return ""
+  }
+
+  const parentCharacters = Array.from(parentWord)
+  const splitLiteral = splitPinyin(transliteration)
+
+  if (parentCharacters.length <= 1 || splitLiteral.length !== parentCharacters.length) {
+    return ""
+  }
+
+  const firstMatchingCharacterIndex = parentCharacters.indexOf(character)
+
+  if (
+    firstMatchingCharacterIndex === -1 ||
+    parentCharacters.lastIndexOf(character) !== firstMatchingCharacterIndex
+  ) {
+    return ""
+  }
+
+  const transliterationIndex = firstMatchingCharacterIndex
+  return splitLiteral[transliterationIndex]
+}
+
+const getTransliterationParentWord = (character: string, definitionSelectionWords: string[]) => {
+  return definitionSelectionWords.find((word) => {
+    const wordCharacters = Array.from(word)
+    return wordCharacters.length > 1 && wordCharacters.includes(character)
+  }) || ""
+}
+
 const getNonPunctuationWordCount = (tokens: WordToken[]) => {
   return tokens.reduce((count, token) => {
     const normalizedWord = normalizeDefinition(token.word)
@@ -117,11 +166,9 @@ const App = () => {
   const [debouncedRequest, setDebouncedRequest] = useState<{
     text: string
     targetLanguage: string
-    model: Model
   } | null>(null)
   const [targetLanguage, setTargetLanguage] = useState(Languages[0].value)
   const [isTargetLanguageLoaded, setIsTargetLanguageLoaded] = useState(false)
-  const [selectedModel, setSelectedModel] = useState<Model>("openai")
   const [selectedOutputWords, setSelectedOutputWords] = useState<string[]>([])
   const [wordDefinitions, setWordDefinitions] = useState<WordDefinition[]>([])
   const [isDefinitionLoading, setIsDefinitionLoading] = useState(false)
@@ -136,7 +183,6 @@ const App = () => {
   const selectedDefinitionWordsRef = useRef<string[]>([])
   const definitionContextRef = useRef("")
   const targetLanguageRef = useRef(targetLanguage)
-  const selectedModelRef = useRef(selectedModel)
   const CacheRef = useRef(Cache())
   const audioCacheRef = useRef(AudioCache())
   const grammarCacheRef = useRef(GrammarCache())
@@ -180,7 +226,7 @@ const App = () => {
       audioBytes[index] = binaryAudio.charCodeAt(index)
     }
 
-    const audioBlob = new Blob([audioBytes], { type: mimeType || "audio/pcm" })
+    const audioBlob = new Blob([audioBytes], { type: "audio/wav" })
     return URL.createObjectURL(audioBlob)
   }
 
@@ -244,6 +290,44 @@ const App = () => {
 
     void (async () => {
       try {
+        audio.preload = "auto"
+        audio.load()
+
+        await new Promise<void>((resolve, reject) => {
+          let timeoutId = 0
+          let isSettled = false
+
+          const clear = () => {
+            window.clearTimeout(timeoutId)
+            audio.removeEventListener("canplaythrough", onReady)
+            audio.removeEventListener("error", onError)
+          }
+
+          const settle = (callback: () => void) => {
+            if (isSettled) {
+              return
+            }
+
+            isSettled = true
+            clear()
+            callback()
+          }
+
+          const onReady = () => {
+            settle(() => resolve())
+          }
+
+          const onError = () => {
+            settle(() => reject(new Error("Unable to decode audio")))
+          }
+
+          audio.addEventListener("canplaythrough", onReady, { once: true })
+          audio.addEventListener("error", onError, { once: true })
+          timeoutId = window.setTimeout(() => {
+            settle(() => resolve())
+          }, 1000)
+        })
+
         if (audioContextRef.current?.state === "suspended") {
           await audioContextRef.current.resume()
         }
@@ -352,8 +436,7 @@ const App = () => {
   const setDebouncedTranslateRequest = (text: string) => {
     setDebouncedRequest({
       text,
-      targetLanguage,
-      model: selectedModel
+      targetLanguage
     })
   }
 
@@ -448,10 +531,6 @@ const App = () => {
   useEffect(() => {
     targetLanguageRef.current = targetLanguage
   }, [targetLanguage])
-
-  useEffect(() => {
-    selectedModelRef.current = selectedModel
-  }, [selectedModel])
 
   useEffect(() => {
     let isDisposed = false
@@ -611,11 +690,10 @@ const App = () => {
       clientRef.current?.sendDefinitionsRequest({
         word,
         context: outputText,
-        targetLanguage,
-        model: selectedModel
+        targetLanguage
       })
     })
-  }, [definitionSelectionWords, isSocketOpen, outputText, selectedModel, targetLanguage])
+  }, [definitionSelectionWords, isSocketOpen, outputText, targetLanguage])
 
   useEffect(() => {
     if (!shouldShowGrammarPane) {
@@ -643,10 +721,9 @@ const App = () => {
     // pendingGrammarRequestTextRef.current = outputText
     // clientRef.current?.sendGrammarRequest({
     //   text: outputText,
-    //   targetLanguage,
-    //   model: selectedModel
+    //   targetLanguage
     // })
-  }, [isSocketOpen, outputText, selectedModel, shouldShowGrammarPane, targetLanguage])
+  }, [isSocketOpen, outputText, shouldShowGrammarPane, targetLanguage])
 
   const definitionByWord = new Map(
     wordDefinitions.map((entry) => [normalizeDefinition(entry.word), entry.definition])
@@ -664,7 +741,6 @@ const App = () => {
 
     return transliterations
   }, new Map<string, string>())
-
   return (
     <main>
       <section ref={headerSectionRef} style={{
@@ -747,8 +823,7 @@ const App = () => {
               pendingAudioRequestTextRef.current = outputText
               clientRef.current?.sendAudioRequest({
                 text: outputText,
-                targetLanguage,
-                model: selectedModelRef.current
+                targetLanguage
               })
             }}
             className="fade-in"
@@ -772,7 +847,21 @@ const App = () => {
           const normalizedWord = normalizeDefinition(word)
           const definition = definitionByWord.get(normalizedWord) || ""
           const transliterationKey = normalizedWord || word
-          const transliteration = transliterationByWord.get(transliterationKey) || ""
+          const rawTransliteration = transliterationByWord.get(transliterationKey) || ""
+          const wordCharacters = Array.from(word)
+          const isCompoundWord = wordCharacters.length > 1
+          const directTransliteration = isCompoundWord
+            ? rawTransliteration
+            : getFormattedLiteral(rawTransliteration, targetLanguage)
+          const isSingleCharacterWord = wordCharacters.length === 1
+          const splitTransliteration = isSingleCharacterWord && isChineseLanguage(targetLanguage)
+            ? getCharacterTransliteration(
+              word,
+              getTransliterationParentWord(word, definitionSelectionWords),
+              transliterationByWord
+            )
+            : ""
+          const transliteration = directTransliteration || splitTransliteration
           const shouldShowTransliterationPrefix = !!selectedLanguageOption?.transliterate && !!transliteration
           const definitionPrefix = shouldShowTransliterationPrefix
             ? `${word} (${transliteration})`
@@ -796,7 +885,7 @@ const App = () => {
 
       {isLocal() && !isMobile() && (
         <span className="app-version" aria-label="App version">
-          v0.4.1
+          v0.4.2
         </span>
       )}
     </main>

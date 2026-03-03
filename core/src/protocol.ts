@@ -1,5 +1,3 @@
-export type Model = "openai" | "anthropic"
-
 export type WsClientMessage = WsRequest | WsDefinitionsRequest | WsAudioRequest | WsGrammarRequest
 export type WsServerMessage = WsReady | WsSuccess | WsDefinitionsSuccess | WsAudioSuccess | WsGrammarSuccess | WsError
 

@@ -1,8 +1,8 @@
 import {
-  Model, WsAudioRequest, WsDefinitionsRequest, WsGrammarRequest, WsRequest,
+  WsAudioRequest, WsDefinitionsRequest, WsGrammarRequest, WsRequest,
   WsServerMessage, WordDefinition, WordToken
 } from "@piggo-translate/core"
-import { isLocal, normalizeDefinition } from "@piggo-translate/web"
+import { isLocal, normalizeDefinition, normalizeText } from "@piggo-translate/web"
 
 export type RequestSnapshot = {
   id: string
@@ -12,20 +12,17 @@ export type RequestSnapshot = {
 export type TranslateRequestInput = {
   text: string
   targetLanguage: string
-  model: Model
 }
 
 export type DefinitionsRequestInput = {
   word: string
   context: string
   targetLanguage: string
-  model: Model
 }
 
 export type GrammarRequestInput = {
   text: string
   targetLanguage: string
-  model: Model
 }
 
 export type ClientOptions = {
@@ -57,34 +54,30 @@ export type Client = {
   sendTranslateRequest: (requestInput: TranslateRequestInput) => void
   sendDefinitionsRequest: (requestInput: DefinitionsRequestInput) => void
   sendGrammarRequest: (requestInput: GrammarRequestInput) => void
-  sendAudioRequest: (requestInput: { text: string, targetLanguage: string, model: Model }) => void
+  sendAudioRequest: (requestInput: { text: string, targetLanguage: string }) => void
 }
-
-const normalizeText = (text: string) => text.replace(/\s+/g, " ").trim()
 
 const getTranslateWsUrl = () => {
   return isLocal() ? "http://localhost:5001/api/ws" : "https://piggo-translate-production.up.railway.app/api/ws"
 }
 
-const getRequestSignature = ({ text, targetLanguage, model }: { text: string, targetLanguage: string, model: Model }) => {
-  return `${model}::${normalizeText(text)}::${targetLanguage}`
+const getRequestSignature = ({ text, targetLanguage }: { text: string, targetLanguage: string }) => {
+  return `${normalizeText(text)}::${targetLanguage}`
 }
 
 const getDefinitionRequestSignature = (
   word: string,
   context: string,
-  targetLanguage: string,
-  model: Model
+  targetLanguage: string
 ) => {
-  return `${model}::${targetLanguage}::${normalizeDefinition(word)}::${normalizeText(context)}`
+  return `${targetLanguage}::${normalizeDefinition(word)}::${normalizeText(context)}`
 }
 
 const getGrammarRequestSignature = (
   text: string,
-  targetLanguage: string,
-  model: Model
+  targetLanguage: string
 ) => {
-  return `${model}::${targetLanguage}::${normalizeText(text)}`
+  return `${targetLanguage}::${normalizeText(text)}`
 }
 
 export const Client = (options: ClientOptions): Client => {
@@ -186,8 +179,7 @@ export const Client = (options: ClientOptions): Client => {
     const requestSignature = getDefinitionRequestSignature(
       normalizedWord,
       normalizedContext,
-      requestInput.targetLanguage,
-      requestInput.model
+      requestInput.targetLanguage
     )
 
     if (definitionRequestSignaturesInFlight.has(requestSignature)) {
@@ -214,7 +206,7 @@ export const Client = (options: ClientOptions): Client => {
     socket.send(JSON.stringify(request))
   }
 
-  const sendAudioRequest = (requestInput: { text: string, targetLanguage: string, model: Model }) => {
+  const sendAudioRequest = (requestInput: { text: string, targetLanguage: string }) => {
     const normalizedText = normalizeText(requestInput.text)
 
     if (!normalizedText || !requestInput.targetLanguage.trim() || !socket || socket.readyState !== WebSocket.OPEN) {
@@ -246,8 +238,7 @@ export const Client = (options: ClientOptions): Client => {
 
     const requestSignature = getGrammarRequestSignature(
       normalizedText,
-      normalizedTargetLanguage,
-      requestInput.model
+      normalizedTargetLanguage
     )
 
     if (requestSignature === latestGrammarRequestSignature) {
