@@ -1,2 +1,2 @@
-export * from "./protocol"
-export * from "./Languages"
+export * from "./src/protocol"
+export * from "./src/Languages"

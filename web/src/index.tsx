@@ -17,13 +17,24 @@ const noSpaceBeforePunctuationPattern = /^[.,!?;:%)\]\}»”’、。，！？�
 const noSpaceAfterPunctuationPattern = /^[(\[{«“‘]$/
 const audioPlaybackGain = 3
 
+const getFormattedLiteral = (literal: string, targetLanguage: string) => {
+  if (!isChineseLanguage(targetLanguage)) return literal
+
+  const splitLiteral = splitPinyin(literal)
+  return splitLiteral.length > 1 ? splitLiteral.join(" ") : literal
+}
+
 const joinOutputTokens = (
   tokens: WordToken[], targetLanguage: string, tokenKey: "word" | "literal", options?: { forceSpaceSeparated?: boolean }
 ) => {
   const useSpaces = options?.forceSpaceSeparated || isSpaceSeparatedLanguage(targetLanguage)
+  const formatToken = tokenKey === "literal"
+    ? (value: string) => getFormattedLiteral(value, targetLanguage)
+    : (value: string) => value
 
   return tokens.reduce((result, token, tokenIndex) => {
-    const tokenValue = token[tokenKey]
+    const rawTokenValue = token[tokenKey]
+    const tokenValue = formatToken(rawTokenValue)
 
     if (!tokenValue) return result
 
@@ -846,7 +857,7 @@ const App = () => {
           const normalizedWord = normalizeDefinition(word)
           const definition = definitionByWord.get(normalizedWord) || ""
           const transliterationKey = normalizedWord || word
-          const directTransliteration = transliterationByWord.get(transliterationKey) || ""
+          const directTransliteration = getFormattedLiteral(transliterationByWord.get(transliterationKey) || "", targetLanguage)
           const isSingleCharacterWord = Array.from(word).length === 1
           const splitTransliteration = isSingleCharacterWord && isChineseLanguage(targetLanguage)
             ? getCharacterTransliteration(
