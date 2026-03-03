@@ -175,7 +175,7 @@ const App = () => {
       audioBytes[index] = binaryAudio.charCodeAt(index)
     }
 
-    const audioBlob = new Blob([audioBytes], { type: mimeType || "audio/pcm" })
+    const audioBlob = new Blob([audioBytes], { type: "audio/wav" })
     return URL.createObjectURL(audioBlob)
   }
 
@@ -239,6 +239,44 @@ const App = () => {
 
     void (async () => {
       try {
+        audio.preload = "auto"
+        audio.load()
+
+        await new Promise<void>((resolve, reject) => {
+          let timeoutId = 0
+          let isSettled = false
+
+          const clear = () => {
+            window.clearTimeout(timeoutId)
+            audio.removeEventListener("canplaythrough", onReady)
+            audio.removeEventListener("error", onError)
+          }
+
+          const settle = (callback: () => void) => {
+            if (isSettled) {
+              return
+            }
+
+            isSettled = true
+            clear()
+            callback()
+          }
+
+          const onReady = () => {
+            settle(() => resolve())
+          }
+
+          const onError = () => {
+            settle(() => reject(new Error("Unable to decode audio")))
+          }
+
+          audio.addEventListener("canplaythrough", onReady, { once: true })
+          audio.addEventListener("error", onError, { once: true })
+          timeoutId = window.setTimeout(() => {
+            settle(() => resolve())
+          }, 1000)
+        })
+
         if (audioContextRef.current?.state === "suspended") {
           await audioContextRef.current.resume()
         }

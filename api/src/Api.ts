@@ -309,7 +309,7 @@ export const createApiServer = () => {
               type: "translate.audio.success",
               requestId: parsedMessage.requestId,
               audioBase64: audioBuffer.toString("base64"),
-              mimeType: audioBlob.type || "audio/pcm"
+              mimeType: "audio/wav"
             }))
           } catch (error) {
             logServerError(`WS audio ${parsedMessage.requestId}`, error)
