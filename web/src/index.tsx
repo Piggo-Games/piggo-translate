@@ -861,7 +861,11 @@ const App = () => {
           const normalizedWord = normalizeDefinition(word)
           const definition = definitionByWord.get(normalizedWord) || ""
           const transliterationKey = normalizedWord || word
-          const directTransliteration = getFormattedLiteral(transliterationByWord.get(transliterationKey) || "", targetLanguage)
+          const rawTransliteration = transliterationByWord.get(transliterationKey) || ""
+          const isCompoundWord = Array.from(word).length > 1
+          const directTransliteration = isCompoundWord
+            ? rawTransliteration
+            : getFormattedLiteral(rawTransliteration, targetLanguage)
           const isSingleCharacterWord = Array.from(word).length === 1
           const splitTransliteration = isSingleCharacterWord && isChineseLanguage(targetLanguage)
             ? getCharacterTransliteration(

@@ -573,17 +573,14 @@ const buildTranslationInstructions = (targetLanguage: string) => {
 const buildDefinitionInstructions = (targetLanguage: string, sentence: string, wordLength: number) => {
   return (
     `You write concise explanations for words.\n` +
-    `Your response is in english.\n` +
+    `Write the explanation in english.\n` +
     "The goal is to help someone understand a new word in their non-native language.\n" +
     "describe the etymology/usage/grammar of the word.\n" +
     `The language of the word to define is ${targetLanguage}.\n` +
     `The surrounding context for the word is: "${sentence}"\n` +
     "Return only valid JSON with exactly this shape: {\"definition\":\"...\"}\n" +
-    // `Keep the definition under ${wordLength === 1 ? 20 : 30} words.\n` +
     `Keep the definition under 20 words.\n` +
     (wordLength === 1 ? "If the word is a Chinese character, explain its component radicals.\n" : "") +
-    // "If the word is composed of multiple component words, briefly explain each component.\n" +
-    // "Consider the grammatical rules of the language when analyzing the word and its components.\n" +
     "Do not include the word itself.\n" +
     "Do not repeat the provided context.\n" +
     "Do not include markdown or code fences."
