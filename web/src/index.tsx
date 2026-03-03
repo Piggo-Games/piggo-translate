@@ -25,11 +25,14 @@ const getFormattedLiteral = (literal: string, targetLanguage: string) => {
 }
 
 const joinOutputTokens = (
-  tokens: WordToken[], targetLanguage: string, tokenKey: "word" | "literal", options?: { forceSpaceSeparated?: boolean }
+  tokens: WordToken[], targetLanguage: string, tokenKey: "word" | "literal", options?: {
+    forceSpaceSeparated?: boolean
+    formatToken?: (value: string) => string
+  }
 ) => {
   const useSpaces = options?.forceSpaceSeparated || isSpaceSeparatedLanguage(targetLanguage)
   const formatToken = tokenKey === "literal"
-    ? (value: string) => getFormattedLiteral(value, targetLanguage)
+    ? (value: string) => options?.formatToken?.(value) || getFormattedLiteral(value, targetLanguage)
     : (value: string) => value
 
   return tokens.reduce((result, token, tokenIndex) => {
@@ -403,7 +406,8 @@ const App = () => {
   const outputText = joinOutputTokens(outputWords, targetLanguage, "word")
   const hasTargetText = !!outputText.trim()
   const outputLiteralText = joinOutputTokens(outputWords, targetLanguage, "literal", {
-    forceSpaceSeparated: true
+    forceSpaceSeparated: true,
+    formatToken: (value) => value
   })
   const definitionSelectionWords = useMemo(
     () => getDefinitionSelectionWords(selectedOutputWords, targetLanguage),

@@ -192,6 +192,8 @@ const parseWsJsonMessage = (message: string | Uint8Array | Buffer) => {
   return JSON.parse(rawText)
 }
 
+const stripWhitespace = (value: string) => value.replace(/\s/g, "")
+
 export const createApiServer = () => {
 
   const openAiTranslator = OpenAiTranslator()
@@ -279,8 +281,13 @@ export const createApiServer = () => {
             ws.send(JSON.stringify({
               type: "translate.success",
               requestId: parsedMessage.requestId,
-              words: translatedOutput.words
+              words: translatedOutput.words.map((word) => ({
+                ...word,
+                literal: stripWhitespace(word.literal)
+              }))
             }))
+            console.log(translatedOutput.words.map((word) => word.literal))
+            console.log(translatedOutput.words.map((word) => stripWhitespace(word.literal)))
           } catch (error) {
             logServerError(`WS translate ${parsedMessage.requestId}`, error)
 

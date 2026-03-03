@@ -17103,13 +17103,11 @@ var require_client = __commonJS((exports, module) => {
 // src/components/DefinitionPane.tsx
 var import_react = __toESM(require_react(), 1);
 
-// src/components/paneUtils.ts
-var textPaneAnimationMinIntervalMs = 15;
-var textPaneAnimationMaxIntervalMs = 90;
-var textPaneAnimationFastThreshold = 24;
-var selectableOutputTokenPattern = /[\p{Script=Han}]|[^\s\p{Script=Han}]+|\s+/gu;
-var selectionWordStripPattern = /[^\p{L}\p{M}\p{N}\p{Script=Han}-]+/gu;
-var getSelectionWord = (value) => value.replace(selectionWordStripPattern, "");
+// src/utils/TextUtils.ts
+var normalizeText = (text) => text.replace(/\s+/g, " ").trim();
+var definitionWordStripPattern = /[^\p{L}\p{M}\p{N}\p{Script=Han}-]+/gu;
+var normalizeDefinition = (word) => word.replace(definitionWordStripPattern, "");
+var getSelectionWord = (value) => value.replace(definitionWordStripPattern, "");
 var copyTextToClipboard = async (value) => {
   if (!value) {
     return false;
@@ -17136,6 +17134,12 @@ var copyTextToClipboard = async (value) => {
     return false;
   }
 };
+
+// src/components/paneUtils.ts
+var textPaneAnimationMinIntervalMs = 15;
+var textPaneAnimationMaxIntervalMs = 90;
+var textPaneAnimationFastThreshold = 24;
+var selectableOutputTokenPattern = /[\p{Script=Han}]|[^\s\p{Script=Han}]+|\s+/gu;
 var getSharedPrefixLength = (left, right) => {
   const maxLength = Math.min(left.length, right.length);
   let index = 0;
@@ -17954,8 +17958,6 @@ var Transliteration = ({ value, isVisible, onToggle }) => {
   }, undefined, true, undefined, this);
 };
 // src/client/Cache.ts
-var definitionWordStripPattern = /[^\p{L}\p{M}\p{N}\p{Script=Han}-]+/gu;
-var normalizeDefinition = (word) => word.replace(definitionWordStripPattern, "");
 var getUniqueDefinitionWords = (words) => Array.from(new Set(words.map((word) => normalizeDefinition(word)).filter(Boolean)));
 var Cache = (maxItems = 10) => {
   const cache = {};
@@ -18004,7 +18006,6 @@ var Cache = (maxItems = 10) => {
   };
 };
 // src/client/AudioCache.ts
-var normalizeText = (text) => text.replace(/\s+/g, " ").trim();
 var AudioCache = () => {
   const cache = {};
   const get = (text) => {
@@ -18033,15 +18034,14 @@ var AudioCache = () => {
   };
 };
 // src/client/GrammarCache.ts
-var normalizeText2 = (text) => text.replace(/\s+/g, " ").trim();
 var GrammarCache = () => {
   const cache = {};
   const get = (text) => {
-    const key = normalizeText2(text);
+    const key = normalizeText(text);
     return cache[key] || "";
   };
   const set = (params) => {
-    const key = normalizeText2(params.text);
+    const key = normalizeText(params.text);
     const normalizedGrammar = params.grammar.trim();
     if (!key || !normalizedGrammar) {
       return;
@@ -18060,18 +18060,17 @@ var GrammarCache = () => {
   };
 };
 // src/client/Client.ts
-var normalizeText3 = (text) => text.replace(/\s+/g, " ").trim();
 var getTranslateWsUrl = () => {
   return isLocal() ? "http://localhost:5001/api/ws" : "https://piggo-translate-production.up.railway.app/api/ws";
 };
 var getRequestSignature = ({ text, targetLanguage }) => {
-  return `${normalizeText3(text)}::${targetLanguage}`;
+  return `${normalizeText(text)}::${targetLanguage}`;
 };
 var getDefinitionRequestSignature = (word, context, targetLanguage) => {
-  return `${targetLanguage}::${normalizeDefinition(word)}::${normalizeText3(context)}`;
+  return `${targetLanguage}::${normalizeDefinition(word)}::${normalizeText(context)}`;
 };
 var getGrammarRequestSignature = (text, targetLanguage) => {
-  return `${targetLanguage}::${normalizeText3(text)}`;
+  return `${targetLanguage}::${normalizeText(text)}`;
 };
 var Client = (options) => {
   let socket = null;
@@ -18135,7 +18134,7 @@ var Client = (options) => {
     options.onTranslatingChange(true);
     latestRequest = {
       id: requestId,
-      normalizedInputText: normalizeText3(requestInput.text)
+      normalizedInputText: normalizeText(requestInput.text)
     };
     options.onLatestRequestChange(latestRequest);
     lastRequestedSignature = requestSignature;
@@ -18149,7 +18148,7 @@ var Client = (options) => {
   };
   const sendDefinitionsRequest = (requestInput) => {
     const normalizedWord = normalizeDefinition(requestInput.word);
-    const normalizedContext = normalizeText3(requestInput.context);
+    const normalizedContext = normalizeText(requestInput.context);
     if (!normalizedWord || !normalizedContext || !socket || socket.readyState !== WebSocket.OPEN) {
       return;
     }
@@ -18175,7 +18174,7 @@ var Client = (options) => {
     socket.send(JSON.stringify(request));
   };
   const sendAudioRequest = (requestInput) => {
-    const normalizedText = normalizeText3(requestInput.text);
+    const normalizedText = normalizeText(requestInput.text);
     if (!normalizedText || !requestInput.targetLanguage.trim() || !socket || socket.readyState !== WebSocket.OPEN) {
       return;
     }
@@ -18192,7 +18191,7 @@ var Client = (options) => {
     socket.send(JSON.stringify(request));
   };
   const sendGrammarRequest = (requestInput) => {
-    const normalizedText = normalizeText3(requestInput.text);
+    const normalizedText = normalizeText(requestInput.text);
     const normalizedTargetLanguage = requestInput.targetLanguage.trim();
     if (!normalizedText || !normalizedTargetLanguage || !socket || socket.readyState !== WebSocket.OPEN) {
       return;
@@ -18432,7 +18431,7 @@ var writeTargetLanguage = async (targetLanguage) => {
 // src/utils/WebUtils.ts
 var isMobile = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 var isLocal = () => window.location.hostname === "localhost";
-// ../core/Languages.ts
+// ../core/src/Languages.ts
 var Languages = [
   { label: "Chinese", value: "Chinese (simplified)", transliterate: true },
   { label: "English", value: "English", transliterate: false },
@@ -18441,11 +18440,157 @@ var Languages = [
   { label: "Russian", value: "Russian", transliterate: true },
   { label: "French", value: "French", transliterate: false }
 ];
+var pinyinToneMarkedVowels = new Set([
+  "a",
+  "ā",
+  "á",
+  "ǎ",
+  "à",
+  "e",
+  "ē",
+  "é",
+  "ě",
+  "è",
+  "i",
+  "ī",
+  "í",
+  "ǐ",
+  "ì",
+  "o",
+  "ō",
+  "ó",
+  "ǒ",
+  "ò",
+  "u",
+  "ū",
+  "ú",
+  "ǔ",
+  "ù",
+  "ü",
+  "ǖ",
+  "ǘ",
+  "ǚ",
+  "ǜ",
+  "v",
+  "A",
+  "Ā",
+  "Á",
+  "Ǎ",
+  "À",
+  "E",
+  "Ē",
+  "É",
+  "Ě",
+  "È",
+  "I",
+  "Ī",
+  "Í",
+  "Ǐ",
+  "Ì",
+  "O",
+  "Ō",
+  "Ó",
+  "Ǒ",
+  "Ò",
+  "U",
+  "Ū",
+  "Ú",
+  "Ǔ",
+  "Ù",
+  "V",
+  "Ǖ",
+  "Ǘ",
+  "Ǚ",
+  "Ǜ"
+]);
+var isPinyinVowel = (character) => {
+  if (character.length !== 1)
+    return false;
+  return pinyinToneMarkedVowels.has(character);
+};
+var isPinyinConsonant = (character) => {
+  if (character.length !== 1)
+    return false;
+  return !isPinyinVowel(character) && /[a-zA-Z]/.test(character);
+};
+var isPinyinSyllableBoundary = (token, index) => {
+  if (index < 1 || index >= token.length - 1)
+    return false;
+  const previousCharacter = token[index - 1];
+  const currentCharacter = token[index];
+  const nextCharacter = token[index + 1];
+  const nextNextCharacter = token[index + 2];
+  const isNextCharacterStartOfSyllable = isPinyinVowel(nextCharacter) || (currentCharacter === "s" || currentCharacter === "z" || currentCharacter === "c") && nextCharacter === "h" && isPinyinVowel(nextNextCharacter);
+  if (!isPinyinConsonant(currentCharacter) || !isNextCharacterStartOfSyllable) {
+    return false;
+  }
+  if (isPinyinVowel(previousCharacter))
+    return true;
+  if (previousCharacter === "n") {
+    return isPinyinVowel(token[index - 2] || "");
+  }
+  if (previousCharacter === "g") {
+    return token[index - 2] === "n" && isPinyinVowel(token[index - 3] || "");
+  }
+  return false;
+};
+var splitPinyin = (value) => {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return [];
+  }
+  const tokensBySpace = trimmedValue.split(/\s+/).map((value2) => value2.trim()).filter(Boolean);
+  if (tokensBySpace.length > 1) {
+    return tokensBySpace;
+  }
+  const tokensByApostrophe = trimmedValue.split("'").map((value2) => value2.trim()).filter(Boolean);
+  if (tokensByApostrophe.length > 1) {
+    return tokensByApostrophe;
+  }
+  const token = tokensBySpace[0] || tokensByApostrophe[0] || trimmedValue;
+  if (!token)
+    return [];
+  const splitAt = [];
+  let sawFirstVowel = false;
+  for (let index = 0;index < token.length; index += 1) {
+    const character = token[index];
+    if (isPinyinVowel(character)) {
+      sawFirstVowel = true;
+    }
+    if (!sawFirstVowel || index < 1 || index >= token.length - 1) {
+      continue;
+    }
+    const previousCharacter = token[index - 1];
+    const currentCharacter = character;
+    const isDoubleConsonant = previousCharacter === currentCharacter && isPinyinConsonant(previousCharacter) && isPinyinConsonant(currentCharacter);
+    const isBoundary = isPinyinSyllableBoundary(token, index);
+    if (isDoubleConsonant || isBoundary) {
+      splitAt.push(index);
+      sawFirstVowel = false;
+    }
+  }
+  if (!splitAt.length) {
+    return [token];
+  }
+  const pieces = [];
+  let start = 0;
+  splitAt.forEach((splitIndex) => {
+    const piece = token.slice(start, splitIndex);
+    if (piece) {
+      pieces.push(piece);
+    }
+    start = splitIndex;
+  });
+  const trailingPiece = token.slice(start);
+  if (trailingPiece) {
+    pieces.push(trailingPiece);
+  }
+  return pieces.filter(Boolean);
+};
 // src/index.tsx
 var import_react7 = __toESM(require_react(), 1);
 var import_client = __toESM(require_client(), 1);
 var jsx_dev_runtime7 = __toESM(require_jsx_dev_runtime(), 1);
-var normalizeText4 = (text) => text.replace(/\s+/g, " ").trim();
 var isSpaceSeparatedLanguage = (language) => ![
   "chinese (simplified)",
   "japanese"
@@ -18454,10 +18599,18 @@ var isChineseLanguage = (language) => language.toLowerCase().includes("chinese")
 var noSpaceBeforePunctuationPattern = /^[.,!?;:%)\]\}»”’、。，！？；：]$/;
 var noSpaceAfterPunctuationPattern = /^[(\[{«“‘]$/;
 var audioPlaybackGain = 3;
+var getFormattedLiteral = (literal, targetLanguage) => {
+  if (!isChineseLanguage(targetLanguage))
+    return literal;
+  const splitLiteral = splitPinyin(literal);
+  return splitLiteral.length > 1 ? splitLiteral.join(" ") : literal;
+};
 var joinOutputTokens = (tokens, targetLanguage, tokenKey, options) => {
   const useSpaces = options?.forceSpaceSeparated || isSpaceSeparatedLanguage(targetLanguage);
+  const formatToken = tokenKey === "literal" ? (value) => options?.formatToken?.(value) || getFormattedLiteral(value, targetLanguage) : (value) => value;
   return tokens.reduce((result, token, tokenIndex) => {
-    const tokenValue = token[tokenKey];
+    const rawTokenValue = token[tokenKey];
+    const tokenValue = formatToken(rawTokenValue);
     if (!tokenValue)
       return result;
     if (!result)
@@ -18502,6 +18655,38 @@ var getDefinitionSelectionWords = (selectedWords, targetLanguage) => {
     return [word, ...characters];
   });
   return Array.from(new Set(expandedWords));
+};
+var getCharacterTransliteration = (character, parentWord, transliterations) => {
+  if (Array.from(character).length !== 1) {
+    return "";
+  }
+  const transliteration = transliterations.get(parentWord);
+  if (!transliteration) {
+    return "";
+  }
+  const parentCharacters = Array.from(parentWord);
+  const splitLiteral = splitPinyin(transliteration);
+  if (parentCharacters.length <= 1 || splitLiteral.length !== parentCharacters.length) {
+    return "";
+  }
+  const matchingCharacterIndexes = parentCharacters.map((parentCharacter, parentCharacterIndex) => parentCharacterIndex).filter((parentCharacterIndex) => parentCharacters[parentCharacterIndex] === character);
+  if (matchingCharacterIndexes.length !== 1) {
+    return "";
+  }
+  const transliterationIndex = matchingCharacterIndexes[0];
+  return splitLiteral[transliterationIndex];
+};
+var getTransliterationParentWord = (character, definitionSelectionWords) => {
+  for (const word of definitionSelectionWords) {
+    const wordCharacters = Array.from(word);
+    if (wordCharacters.length <= 1) {
+      continue;
+    }
+    if (wordCharacters.includes(character)) {
+      return word;
+    }
+  }
+  return "";
 };
 var getNonPunctuationWordCount = (tokens) => {
   return tokens.reduce((count, token) => {
@@ -18575,7 +18760,7 @@ var App = () => {
     for (let index = 0;index < binaryAudio.length; index += 1) {
       audioBytes[index] = binaryAudio.charCodeAt(index);
     }
-    const audioBlob = new Blob([audioBytes], { type: mimeType || "audio/pcm" });
+    const audioBlob = new Blob([audioBytes], { type: "audio/wav" });
     return URL.createObjectURL(audioBlob);
   };
   const connectAudioGainNode = (audio) => {
@@ -18627,6 +18812,36 @@ var App = () => {
     };
     (async () => {
       try {
+        audio.preload = "auto";
+        audio.load();
+        await new Promise((resolve, reject) => {
+          let timeoutId = 0;
+          let isSettled = false;
+          const clear = () => {
+            window.clearTimeout(timeoutId);
+            audio.removeEventListener("canplaythrough", onReady);
+            audio.removeEventListener("error", onError);
+          };
+          const settle = (callback) => {
+            if (isSettled) {
+              return;
+            }
+            isSettled = true;
+            clear();
+            callback();
+          };
+          const onReady = () => {
+            settle(() => resolve());
+          };
+          const onError = () => {
+            settle(() => reject(new Error("Unable to decode audio")));
+          };
+          audio.addEventListener("canplaythrough", onReady, { once: true });
+          audio.addEventListener("error", onError, { once: true });
+          timeoutId = window.setTimeout(() => {
+            settle(() => resolve());
+          }, 1000);
+        });
         if (audioContextRef.current?.state === "suspended") {
           await audioContextRef.current.resume();
         }
@@ -18676,14 +18891,15 @@ var App = () => {
       resizeObserver.disconnect();
     };
   }, []);
-  const normalizedInputText = normalizeText4(inputText);
+  const normalizedInputText = normalizeText(inputText);
   const hasInputText = !!normalizedInputText;
   const hasOutputWords = outputWords.length > 0;
   const hasMultipleOutputWords = getNonPunctuationWordCount(outputWords) > 1;
   const outputText = joinOutputTokens(outputWords, targetLanguage, "word");
   const hasTargetText = !!outputText.trim();
   const outputLiteralText = joinOutputTokens(outputWords, targetLanguage, "literal", {
-    forceSpaceSeparated: true
+    forceSpaceSeparated: true,
+    formatToken: (value) => value
   });
   const definitionSelectionWords = import_react7.useMemo(() => getDefinitionSelectionWords(selectedOutputWords, targetLanguage), [selectedOutputWords, targetLanguage]);
   const shouldShowGrammarPane = hasTargetText && hasMultipleOutputWords && definitionSelectionWords.length === 0;
@@ -18729,6 +18945,7 @@ var App = () => {
         if (selection && shouldClearSelection) {
           selection.removeAllRanges();
         }
+        console.log("Received translation response:", words);
         setOutputWords(words);
         clearAudioPlayback();
         setIsAudioLoading(false);
@@ -19061,7 +19278,10 @@ var App = () => {
             const normalizedWord = normalizeDefinition(word);
             const definition = definitionByWord.get(normalizedWord) || "";
             const transliterationKey = normalizedWord || word;
-            const transliteration = transliterationByWord.get(transliterationKey) || "";
+            const directTransliteration = getFormattedLiteral(transliterationByWord.get(transliterationKey) || "", targetLanguage);
+            const isSingleCharacterWord = Array.from(word).length === 1;
+            const splitTransliteration = isSingleCharacterWord && isChineseLanguage(targetLanguage) ? getCharacterTransliteration(word, getTransliterationParentWord(word, definitionSelectionWords), transliterationByWord) : "";
+            const transliteration = directTransliteration || splitTransliteration;
             const shouldShowTransliterationPrefix = !!selectedLanguageOption?.transliterate && !!transliteration;
             const definitionPrefix = shouldShowTransliterationPrefix ? `${word} (${transliteration})` : word;
             const paneValue = definition ? `${definitionPrefix} — ${definition}` : word;
