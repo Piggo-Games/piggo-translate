@@ -1,13 +1,11 @@
 import {
   DefinitionPane, GrammarPane, InputPane, OutputPane, TargetLanguageDropdown,
-  Transliteration, normalizeDefinition, Cache, AudioCache, GrammarCache,
+  Transliteration, normalizeText, normalizeDefinition, Cache, AudioCache, GrammarCache,
   Client, RequestSnapshot, isLocal, isMobile, readTargetLanguage, writeTargetLanguage
 } from "@piggo-translate/web"
 import { Languages, WordDefinition, WordToken } from "@piggo-translate/core"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
-
-const normalizeText = (text: string) => text.replace(/\s+/g, " ").trim()
 
 const isSpaceSeparatedLanguage = (language: string) => ![
   "chinese (simplified)", "japanese"

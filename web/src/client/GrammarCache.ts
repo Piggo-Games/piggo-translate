@@ -1,10 +1,10 @@
+import { normalizeText } from "../utils/TextUtils"
+
 export type GrammarCache = {
   get: (text: string) => string
   set: (params: { text: string, grammar: string }) => void
   clear: () => void
 }
-
-const normalizeText = (text: string) => text.replace(/\s+/g, " ").trim()
 
 export const GrammarCache = (): GrammarCache => {
   const cache: Record<string, string> = {}

@@ -1,3 +1,5 @@
+import { normalizeText } from "../utils/TextUtils"
+
 export type Audio = {
   audioBase64: string
   mimeType: string
@@ -8,8 +10,6 @@ export type AudioCache = {
   set: (params: { text: string, audioBase64: string, mimeType: string }) => void
   clear: () => void
 }
-
-const normalizeText = (text: string) => text.replace(/\s+/g, " ").trim()
 
 export const AudioCache = (): AudioCache => {
   const cache: Record<string, Audio> = {}

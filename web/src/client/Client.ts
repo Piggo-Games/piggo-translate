@@ -2,7 +2,7 @@ import {
   WsAudioRequest, WsDefinitionsRequest, WsGrammarRequest, WsRequest,
   WsServerMessage, WordDefinition, WordToken
 } from "@piggo-translate/core"
-import { isLocal, normalizeDefinition } from "@piggo-translate/web"
+import { isLocal, normalizeDefinition, normalizeText } from "@piggo-translate/web"
 
 export type RequestSnapshot = {
   id: string
@@ -56,8 +56,6 @@ export type Client = {
   sendGrammarRequest: (requestInput: GrammarRequestInput) => void
   sendAudioRequest: (requestInput: { text: string, targetLanguage: string }) => void
 }
-
-const normalizeText = (text: string) => text.replace(/\s+/g, " ").trim()
 
 const getTranslateWsUrl = () => {
   return isLocal() ? "http://localhost:5001/api/ws" : "https://piggo-translate-production.up.railway.app/api/ws"

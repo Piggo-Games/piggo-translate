@@ -1,8 +1,5 @@
 import { WordDefinition } from "@piggo-translate/core"
-
-const definitionWordStripPattern = /[^\p{L}\p{M}\p{N}\p{Script=Han}-]+/gu
-
-export const normalizeDefinition = (word: string) => word.replace(definitionWordStripPattern, "")
+import { normalizeDefinition } from "../utils/TextUtils"
 
 const getUniqueDefinitionWords = (words: string[]) =>
   Array.from(new Set(words.map((word) => normalizeDefinition(word)).filter(Boolean)))
