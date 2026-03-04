@@ -24,8 +24,7 @@ Run these from the repo root:
 - do not end lines with semicolons
 - do not use `function`
   - instead create arrow functions
-- never use `export { func, type }`, instead just export them at their definition
-- when there's an `if` statement with just a `return` statement inside, prefer making it one line `if (abc === def) return`
+- never use `export { func, type }`, instead just export them at their definition 
 
 ## Testing Guidelines
 - No test framework is configured yet. If you add tests, document the tool and command in this file.

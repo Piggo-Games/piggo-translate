@@ -1,55 +1,19 @@
-export type LanguageCode = "zh" | "en" | "es" | "ja" | "ru" | "fr"
-export type LanguageValue = "Chinese (simplified)" | "English" | "Spanish" | "Japanese" | "Russian" | "French"
-
 export type Language = {
   label: string
-  code: LanguageCode
-  value: LanguageValue
+  value: string
   transliterate: boolean
 }
 
 export const Languages: Language[] = [
-  { code: "zh", label: "Chinese", value: "Chinese (simplified)", transliterate: true },
-  { code: "en", label: "English", value: "English", transliterate: false },
-  { code: "es", label: "Spanish", value: "Spanish", transliterate: false },
-  { code: "ja", label: "Japanese", value: "Japanese", transliterate: true },
-  { code: "ru", label: "Russian", value: "Russian", transliterate: true },
-  { code: "fr", label: "French", value: "French", transliterate: false }
+  { label: "Chinese", value: "Chinese (simplified)", transliterate: true },
+  { label: "English", value: "English", transliterate: false },
+  { label: "Spanish", value: "Spanish", transliterate: false },
+  { label: "Japanese", value: "Japanese", transliterate: true },
+  { label: "Russian", value: "Russian", transliterate: true },
+  { label: "French", value: "French", transliterate: false },
+  // { label: "Italian", value: "Italian", transliterate: false },
+  // { label: "Korean", value: "Korean", transliterate: true },
 ]
-
-export type LanguageValueLower = Lowercase<LanguageValue>
-
-export const isLanguageCode = (value: string): boolean => {
-  return ["zh", "en", "es", "ja", "ru", "fr"].includes(value)
-}
-
-export const languageCodeToValue = (code: LanguageCode): LanguageValue => {
-  const map: Record<LanguageCode, LanguageValue> = {
-    zh: "Chinese (simplified)",
-    en: "English",
-    es: "Spanish",
-    ja: "Japanese",
-    ru: "Russian",
-    fr: "French"
-  }
-  return map[code]
-}
-
-export const languageValueToCode = (value: LanguageValueLower): LanguageCode => {
-  const map: Record<LanguageValueLower, LanguageCode> = {
-    "chinese (simplified)": "zh",
-    "english": "en",
-    "spanish": "es",
-    "japanese": "ja",
-    "russian": "ru",
-    "french": "fr"
-  }
-  return map[value]
-}
-
-export const isLanguageValueLower = (value: string): boolean => {
-  return ["chinese (simplified)", "english", "spanish", "japanese", "russian", "french"].includes(value)
-}
 
 const pinyinToneMarkedVowels = new Set([
   "a", "ā", "á", "ǎ", "à",
