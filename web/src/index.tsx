@@ -3,7 +3,10 @@ import {
   Transliteration, normalizeText, normalizeDefinition, Cache, AudioCache, GrammarCache,
   Client, RequestSnapshot, isLocal, isMobile, readTargetLanguage, writeTargetLanguage
 } from "@piggo-translate/web"
-import { Languages, WordDefinition, WordToken, splitPinyin } from "@piggo-translate/core"
+import {
+  Languages, WordDefinition, WordToken, splitPinyin, isLanguageCode, isLanguageValueLower,
+  languageCodeToValue, languageValueToCode, LanguageCode, LanguageValueLower
+} from "@piggo-translate/core"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
 
@@ -16,6 +19,76 @@ const isChineseLanguage = (language: string) => language.toLowerCase().includes(
 const noSpaceBeforePunctuationPattern = /^[.,!?;:%)\]\}»”’、。，！？；：]$/
 const noSpaceAfterPunctuationPattern = /^[(\[{«“‘]$/
 const audioPlaybackGain = 3
+
+const trimWrappingQuotes = (value: string) => {
+  const trimmedValue = value.trim()
+  const startsWithSingleQuote = trimmedValue.startsWith("'") && trimmedValue.endsWith("'")
+  const startsWithDoubleQuote = trimmedValue.startsWith("\"") && trimmedValue.endsWith("\"")
+
+  if (trimmedValue.length < 2 || (!startsWithSingleQuote && !startsWithDoubleQuote)) {
+    return trimmedValue
+  }
+
+  return trimmedValue.slice(1, -1).trim()
+}
+
+const getUrlParamValue = (searchParams: URLSearchParams, key: string) => {
+  const rawValue = searchParams.get(key)
+  if (!rawValue) {
+    return ""
+  }
+
+  return trimWrappingQuotes(rawValue)
+}
+
+const getLanguageFromParam = (rawLanguageValue: string) => {
+  if (!rawLanguageValue) {
+    return ""
+  }
+
+  const normalizedValue = rawLanguageValue.trim().toLowerCase()
+  const languageByCode = isLanguageCode(normalizedValue)
+    ? languageCodeToValue(normalizedValue as LanguageCode)
+    : undefined
+
+  if (languageByCode) {
+    return languageByCode
+  }
+
+  const matchedLanguage = Languages.find((language) => {
+    const valueMatch = language.value.toLowerCase() === normalizedValue
+    const labelMatch = language.label.toLowerCase() === normalizedValue
+    return valueMatch || labelMatch
+  })
+
+  return matchedLanguage?.value || ""
+}
+
+const getLanguageParamValue = (language: string) => {
+  const normalizedLanguage = language.trim().toLowerCase()
+  const languageCode = isLanguageValueLower(normalizedLanguage)
+    ? languageValueToCode(normalizedLanguage as LanguageValueLower)
+    : undefined
+
+  if (languageCode) {
+    return languageCode
+  }
+
+  return language
+}
+
+const getUrlPrefillState = () => {
+  if (typeof window === "undefined") {
+    return { text: "", targetLanguage: "" }
+  }
+
+  const searchParams = new URLSearchParams(window.location.search)
+  const text = getUrlParamValue(searchParams, "t")
+  const requestedLanguage = getUrlParamValue(searchParams, "l")
+  const targetLanguage = getLanguageFromParam(requestedLanguage)
+
+  return { text, targetLanguage }
+}
 
 const getFormattedLiteral = (literal: string, targetLanguage: string) => {
   if (!isChineseLanguage(targetLanguage)) return literal
@@ -153,7 +226,8 @@ const getNonPunctuationWordCount = (tokens: WordToken[]) => {
 }
 
 const App = () => {
-  const [inputText, setInputText] = useState("")
+  const initialUrlPrefillRef = useRef(getUrlPrefillState())
+  const [inputText, setInputText] = useState(() => initialUrlPrefillRef.current.text)
   const [outputWords, setOutputWords] = useState<WordToken[]>([])
   const [isTransliterationVisible, setIsTransliterationVisible] = useState(true)
   const [errorText, setErrorText] = useState("")
@@ -167,7 +241,9 @@ const App = () => {
     text: string
     targetLanguage: string
   } | null>(null)
-  const [targetLanguage, setTargetLanguage] = useState(Languages[0].value)
+  const [targetLanguage, setTargetLanguage] = useState(() => {
+    return initialUrlPrefillRef.current.targetLanguage || Languages[0].value
+  })
   const [isTargetLanguageLoaded, setIsTargetLanguageLoaded] = useState(false)
   const [selectedOutputWords, setSelectedOutputWords] = useState<string[]>([])
   const [wordDefinitions, setWordDefinitions] = useState<WordDefinition[]>([])
@@ -534,6 +610,7 @@ const App = () => {
 
   useEffect(() => {
     let isDisposed = false
+    const deepLinkedLanguage = initialUrlPrefillRef.current.targetLanguage
 
     void (async () => {
       const persistedTargetLanguage = await readTargetLanguage()
@@ -542,7 +619,12 @@ const App = () => {
         return
       }
 
-      if (persistedTargetLanguage && Languages.some((language) => language.value === persistedTargetLanguage)) {
+      if (deepLinkedLanguage) {
+        setTargetLanguage(deepLinkedLanguage)
+      } else if (
+        persistedTargetLanguage &&
+        Languages.some((language) => language.value === persistedTargetLanguage)
+      ) {
         setTargetLanguage(persistedTargetLanguage)
       }
 
@@ -561,6 +643,41 @@ const App = () => {
 
     void writeTargetLanguage(targetLanguage)
   }, [targetLanguage, isTargetLanguageLoaded])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !isTargetLanguageLoaded) {
+      return
+    }
+
+    const currentUrl = new URL(window.location.href)
+    const nextSearchParams = new URLSearchParams(currentUrl.search)
+    const trimmedInputText = inputText.trim()
+    const languageParamValue = getLanguageParamValue(targetLanguage)
+
+    if (trimmedInputText) {
+      nextSearchParams.set("t", trimmedInputText)
+    } else {
+      nextSearchParams.delete("t")
+    }
+
+    if (languageParamValue) {
+      nextSearchParams.set("l", languageParamValue)
+    } else {
+      nextSearchParams.delete("l")
+    }
+
+    const nextSearch = nextSearchParams.toString()
+    const currentSearch = currentUrl.search.startsWith("?")
+      ? currentUrl.search.slice(1)
+      : currentUrl.search
+
+    if (nextSearch === currentSearch) {
+      return
+    }
+
+    const nextUrl = `${currentUrl.pathname}${nextSearch ? `?${nextSearch}` : ""}${currentUrl.hash}`
+    window.history.replaceState(null, "", nextUrl)
+  }, [inputText, targetLanguage, isTargetLanguageLoaded])
 
   useEffect(() => {
     const textarea = inputTextareaRef.current
@@ -621,7 +738,7 @@ const App = () => {
     }
   }, [])
 
-  // if input changes
+  // if input or language changes
   useEffect(() => {
     const trimmedInputText = inputText.trim()
     clientRef.current?.setCurrentNormalizedInputText(normalizedInputText)
@@ -638,7 +755,7 @@ const App = () => {
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [inputText, normalizedInputText])
+  }, [inputText, normalizedInputText, targetLanguage])
 
   // if language changes
   useEffect(() => {
@@ -798,11 +915,11 @@ const App = () => {
             selectionWordJoiner={isSpaceSeparatedLanguage(targetLanguage) ? " " : ""}
             animateOnMount
             footer={selectedLanguageOption?.transliterate ? (
-                <Transliteration
-                  value={outputLiteralText}
-                  isVisible={isTransliterationVisible}
-                  onToggle={() => setIsTransliterationVisible((value) => !value)}
-                />
+              <Transliteration
+                value={outputLiteralText}
+                isVisible={isTransliterationVisible}
+                onToggle={() => setIsTransliterationVisible((value) => !value)}
+              />
             ) : null}
             enableCopyButton
             copyValue={outputText}
@@ -885,7 +1002,7 @@ const App = () => {
 
       {isLocal() && !isMobile() && (
         <span className="app-version" aria-label="App version">
-          v0.4.2
+          v0.4.3
         </span>
       )}
     </main>
