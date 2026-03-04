@@ -3,7 +3,10 @@ import {
   Transliteration, normalizeText, normalizeDefinition, Cache, AudioCache, GrammarCache,
   Client, RequestSnapshot, isLocal, isMobile, readTargetLanguage, writeTargetLanguage
 } from "@piggo-translate/web"
-import { Languages, WordDefinition, WordToken, splitPinyin } from "@piggo-translate/core"
+import {
+  Languages, WordDefinition, WordToken, splitPinyin, languageCodeToValue, languageValueToCode,
+  isLanguageCode, isNormalizedLanguageValue
+} from "@piggo-translate/core"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
 
@@ -16,24 +19,6 @@ const isChineseLanguage = (language: string) => language.toLowerCase().includes(
 const noSpaceBeforePunctuationPattern = /^[.,!?;:%)\]\}»”’、。，！？；：]$/
 const noSpaceAfterPunctuationPattern = /^[(\[{«“‘]$/
 const audioPlaybackGain = 3
-
-const languageCodeToValue: Record<string, string> = {
-  zh: "Chinese (simplified)",
-  en: "English",
-  es: "Spanish",
-  ja: "Japanese",
-  ru: "Russian",
-  fr: "French"
-}
-
-const languageValueToCode: Record<string, string> = {
-  "chinese (simplified)": "zh",
-  english: "en",
-  spanish: "es",
-  japanese: "ja",
-  russian: "ru",
-  french: "fr"
-}
 
 const trimWrappingQuotes = (value: string) => {
   const trimmedValue = value.trim()
@@ -62,7 +47,9 @@ const getLanguageFromParam = (rawLanguageValue: string) => {
   }
 
   const normalizedValue = rawLanguageValue.trim().toLowerCase()
-  const languageByCode = languageCodeToValue[normalizedValue]
+  const languageByCode = isLanguageCode(normalizedValue)
+    ? languageCodeToValue[normalizedValue]
+    : undefined
 
   if (languageByCode) {
     return languageByCode
@@ -79,7 +66,9 @@ const getLanguageFromParam = (rawLanguageValue: string) => {
 
 const getLanguageParamValue = (language: string) => {
   const normalizedLanguage = language.trim().toLowerCase()
-  const languageCode = languageValueToCode[normalizedLanguage]
+  const languageCode = isNormalizedLanguageValue(normalizedLanguage)
+    ? languageValueToCode[normalizedLanguage]
+    : undefined
 
   if (languageCode) {
     return languageCode

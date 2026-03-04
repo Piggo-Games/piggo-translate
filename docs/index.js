@@ -3,15 +3,29 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+function __accessProp(key) {
+  return this[key];
+}
+var __toESMCache_node;
+var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
+  var canCache = mod != null && typeof mod === "object";
+  if (canCache) {
+    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
+    var cached = cache.get(mod);
+    if (cached)
+      return cached;
+  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: () => mod[key],
+        get: __accessProp.bind(mod, key),
         enumerable: true
       });
+  if (canCache)
+    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -18432,6 +18446,24 @@ var writeTargetLanguage = async (targetLanguage) => {
 var isMobile = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 var isLocal = () => window.location.hostname === "localhost";
 // ../core/src/Languages.ts
+var languageCodeToValue = {
+  zh: "Chinese (simplified)",
+  en: "English",
+  es: "Spanish",
+  ja: "Japanese",
+  ru: "Russian",
+  fr: "French"
+};
+var languageValueToCode = {
+  "chinese (simplified)": "zh",
+  english: "en",
+  spanish: "es",
+  japanese: "ja",
+  russian: "ru",
+  french: "fr"
+};
+var isLanguageCode = (value) => (value in languageCodeToValue);
+var isNormalizedLanguageValue = (value) => (value in languageValueToCode);
 var Languages = [
   { label: "Chinese", value: "Chinese (simplified)", transliterate: true },
   { label: "English", value: "English", transliterate: false },
@@ -18599,6 +18631,56 @@ var isChineseLanguage = (language) => language.toLowerCase().includes("chinese")
 var noSpaceBeforePunctuationPattern = /^[.,!?;:%)\]\}»”’、。，！？；：]$/;
 var noSpaceAfterPunctuationPattern = /^[(\[{«“‘]$/;
 var audioPlaybackGain = 3;
+var trimWrappingQuotes = (value) => {
+  const trimmedValue = value.trim();
+  const startsWithSingleQuote = trimmedValue.startsWith("'") && trimmedValue.endsWith("'");
+  const startsWithDoubleQuote = trimmedValue.startsWith('"') && trimmedValue.endsWith('"');
+  if (trimmedValue.length < 2 || !startsWithSingleQuote && !startsWithDoubleQuote) {
+    return trimmedValue;
+  }
+  return trimmedValue.slice(1, -1).trim();
+};
+var getUrlParamValue = (searchParams, key) => {
+  const rawValue = searchParams.get(key);
+  if (!rawValue) {
+    return "";
+  }
+  return trimWrappingQuotes(rawValue);
+};
+var getLanguageFromParam = (rawLanguageValue) => {
+  if (!rawLanguageValue) {
+    return "";
+  }
+  const normalizedValue = rawLanguageValue.trim().toLowerCase();
+  const languageByCode = isLanguageCode(normalizedValue) ? languageCodeToValue[normalizedValue] : undefined;
+  if (languageByCode) {
+    return languageByCode;
+  }
+  const matchedLanguage = Languages.find((language) => {
+    const valueMatch = language.value.toLowerCase() === normalizedValue;
+    const labelMatch = language.label.toLowerCase() === normalizedValue;
+    return valueMatch || labelMatch;
+  });
+  return matchedLanguage?.value || "";
+};
+var getLanguageParamValue = (language) => {
+  const normalizedLanguage = language.trim().toLowerCase();
+  const languageCode = isNormalizedLanguageValue(normalizedLanguage) ? languageValueToCode[normalizedLanguage] : undefined;
+  if (languageCode) {
+    return languageCode;
+  }
+  return language;
+};
+var getUrlPrefillState = () => {
+  if (typeof window === "undefined") {
+    return { text: "", targetLanguage: "" };
+  }
+  const searchParams = new URLSearchParams(window.location.search);
+  const text = getUrlParamValue(searchParams, "t");
+  const requestedLanguage = getUrlParamValue(searchParams, "l");
+  const targetLanguage = getLanguageFromParam(requestedLanguage);
+  return { text, targetLanguage };
+};
 var getFormattedLiteral = (literal, targetLanguage) => {
   if (!isChineseLanguage(targetLanguage))
     return literal;
@@ -18691,7 +18773,8 @@ var getNonPunctuationWordCount = (tokens) => {
   }, 0);
 };
 var App = () => {
-  const [inputText, setInputText] = import_react7.useState("");
+  const initialUrlPrefillRef = import_react7.useRef(getUrlPrefillState());
+  const [inputText, setInputText] = import_react7.useState(() => initialUrlPrefillRef.current.text);
   const [outputWords, setOutputWords] = import_react7.useState([]);
   const [isTransliterationVisible, setIsTransliterationVisible] = import_react7.useState(true);
   const [errorText, setErrorText] = import_react7.useState("");
@@ -18702,7 +18785,9 @@ var App = () => {
     normalizedInputText: ""
   });
   const [debouncedRequest, setDebouncedRequest] = import_react7.useState(null);
-  const [targetLanguage, setTargetLanguage] = import_react7.useState(Languages[0].value);
+  const [targetLanguage, setTargetLanguage] = import_react7.useState(() => {
+    return initialUrlPrefillRef.current.targetLanguage || Languages[0].value;
+  });
   const [isTargetLanguageLoaded, setIsTargetLanguageLoaded] = import_react7.useState(false);
   const [selectedOutputWords, setSelectedOutputWords] = import_react7.useState([]);
   const [wordDefinitions, setWordDefinitions] = import_react7.useState([]);
@@ -19008,12 +19093,15 @@ var App = () => {
   }, [targetLanguage]);
   import_react7.useEffect(() => {
     let isDisposed = false;
+    const deepLinkedLanguage = initialUrlPrefillRef.current.targetLanguage;
     (async () => {
       const persistedTargetLanguage = await readTargetLanguage();
       if (isDisposed) {
         return;
       }
-      if (persistedTargetLanguage && Languages.some((language) => language.value === persistedTargetLanguage)) {
+      if (deepLinkedLanguage) {
+        setTargetLanguage(deepLinkedLanguage);
+      } else if (persistedTargetLanguage && Languages.some((language) => language.value === persistedTargetLanguage)) {
         setTargetLanguage(persistedTargetLanguage);
       }
       setIsTargetLanguageLoaded(true);
@@ -19028,6 +19116,32 @@ var App = () => {
     }
     writeTargetLanguage(targetLanguage);
   }, [targetLanguage, isTargetLanguageLoaded]);
+  import_react7.useEffect(() => {
+    if (typeof window === "undefined" || !isTargetLanguageLoaded) {
+      return;
+    }
+    const currentUrl = new URL(window.location.href);
+    const nextSearchParams = new URLSearchParams(currentUrl.search);
+    const trimmedInputText = inputText.trim();
+    const languageParamValue = getLanguageParamValue(targetLanguage);
+    if (trimmedInputText) {
+      nextSearchParams.set("t", trimmedInputText);
+    } else {
+      nextSearchParams.delete("t");
+    }
+    if (languageParamValue) {
+      nextSearchParams.set("l", languageParamValue);
+    } else {
+      nextSearchParams.delete("l");
+    }
+    const nextSearch = nextSearchParams.toString();
+    const currentSearch = currentUrl.search.startsWith("?") ? currentUrl.search.slice(1) : currentUrl.search;
+    if (nextSearch === currentSearch) {
+      return;
+    }
+    const nextUrl = `${currentUrl.pathname}${nextSearch ? `?${nextSearch}` : ""}${currentUrl.hash}`;
+    window.history.replaceState(null, "", nextUrl);
+  }, [inputText, targetLanguage, isTargetLanguageLoaded]);
   import_react7.useEffect(() => {
     const textarea = inputTextareaRef.current;
     const pendingSelection = pendingInputSelectionRef.current;
@@ -19085,7 +19199,7 @@ var App = () => {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [inputText, normalizedInputText]);
+  }, [inputText, normalizedInputText, targetLanguage]);
   import_react7.useEffect(() => {
     resetTranslationState(true);
     const trimmedInputText = inputText.trim();

@@ -1,6 +1,32 @@
+export const languageCodeToValue = {
+  zh: "Chinese (simplified)",
+  en: "English",
+  es: "Spanish",
+  ja: "Japanese",
+  ru: "Russian",
+  fr: "French"
+} as const
+
+export type LanguageCode = keyof typeof languageCodeToValue
+export type LanguageValue = (typeof languageCodeToValue)[LanguageCode]
+export type NormalizedLanguageValue = Lowercase<LanguageValue>
+
+export const languageValueToCode: { [K in NormalizedLanguageValue]: LanguageCode } = {
+  "chinese (simplified)": "zh",
+  english: "en",
+  spanish: "es",
+  japanese: "ja",
+  russian: "ru",
+  french: "fr"
+}
+
+export const isLanguageCode = (value: string): value is LanguageCode => value in languageCodeToValue
+export const isNormalizedLanguageValue = (value: string): value is NormalizedLanguageValue =>
+  value in languageValueToCode
+
 export type Language = {
   label: string
-  value: string
+  value: LanguageValue
   transliterate: boolean
 }
 
