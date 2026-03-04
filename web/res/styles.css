@@ -318,6 +318,11 @@ main {
   z-index: 2;
 }
 
+.output-pane-actions-left {
+  left: 0.55rem;
+  right: auto;
+}
+
 .output-pane-action-button {
   width: 1.9rem;
   height: 1.9rem;
@@ -743,6 +748,15 @@ main {
   .output-pane-actions {
     top: 0.1rem;
     right: 0.1rem;
+  }
+
+  .output-pane-actions-left {
+    left: 0.1rem;
+    right: auto;
+  }
+
+  .output-pane-action-button.output-pane-copy-button-selected svg {
+    transform: scale(0.8);
   }
 
   .input-pane-spinner {

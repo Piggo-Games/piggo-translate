@@ -39,7 +39,9 @@ const OutputPane = ({
   const [isCopySelected, setIsCopySelected] = useState(false)
   const copySelectedTimeoutRef = useRef<number | null>(null)
   const paneClassName = ["output-pane", className].filter(Boolean).join(" ")
-  const shouldRenderCopyButton = !!enableCopyButton && !isMobile()
+  const isMobileDevice = isMobile()
+  const shouldRenderDesktopCopyButton = !!enableCopyButton && !isMobileDevice
+  const shouldRenderMobileCopyButton = !!enableCopyButton && isMobileDevice
   const isEditableActiveElement = () => {
     const activeElement = document.activeElement
 
@@ -399,7 +401,7 @@ const OutputPane = ({
 
       {footer ? footer : null}
 
-      {enableCopyButton || enableAudioButton ? (
+      {enableAudioButton || shouldRenderDesktopCopyButton ? (
         <div className="output-pane-actions">
           {enableAudioButton ? (
             <button
@@ -426,7 +428,7 @@ const OutputPane = ({
               )}
             </button>
           ) : null}
-          {shouldRenderCopyButton ? (
+          {shouldRenderDesktopCopyButton ? (
             <button
               type="button"
               className={`output-pane-action-button${didCopy ? " output-pane-copy-button-copied" : ""}${isCopySelected ? " output-pane-copy-button-selected" : ""}`}
@@ -468,6 +470,51 @@ const OutputPane = ({
               </svg>
             </button>
           ) : null}
+        </div>
+      ) : null}
+
+      {shouldRenderMobileCopyButton ? (
+        <div className="output-pane-actions output-pane-actions-left">
+          <button
+            type="button"
+            className={`output-pane-action-button${didCopy ? " output-pane-copy-button-copied" : ""}${isCopySelected ? " output-pane-copy-button-selected" : ""}`}
+            aria-label="Copy output text"
+            title={didCopy ? "Copied" : "Copy"}
+            onPointerDown={(event) => {
+              event.preventDefault()
+            }}
+            onClick={async () => {
+              const copied = await copyTextToClipboard(copyValue ?? value)
+
+              if (!copied) {
+                return
+              }
+
+              setDidCopy(true)
+              setIsCopySelected(true)
+
+              if (copySelectedTimeoutRef.current) {
+                window.clearTimeout(copySelectedTimeoutRef.current)
+              }
+
+              copySelectedTimeoutRef.current = window.setTimeout(() => {
+                setIsCopySelected(false)
+              }, 200)
+
+              if (copyFeedbackTimeoutRef.current) {
+                window.clearTimeout(copyFeedbackTimeoutRef.current)
+              }
+
+              copyFeedbackTimeoutRef.current = window.setTimeout(() => {
+                setDidCopy(false)
+              }, 1000)
+            }}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 8h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z" />
+              <path d="M5 16H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1" />
+            </svg>
+          </button>
         </div>
       ) : null}
     </section>
