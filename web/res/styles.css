@@ -318,6 +318,11 @@ main {
   z-index: 2;
 }
 
+.output-pane-actions-left {
+  left: 0.55rem;
+  right: auto;
+}
+
 .output-pane-action-button {
   width: 1.9rem;
   height: 1.9rem;
@@ -328,12 +333,12 @@ main {
   justify-content: center;
   background: transparent;
   color: rgba(16, 24, 32, 0.78);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translateY(-2px) scale(0.8);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
   cursor: default;
-  transition: opacity 300ms ease, transform 300ms ease, color 120ms ease, visibility 0s linear 300ms;
+  transition: opacity 300ms ease, transform 300ms ease, color 120ms ease, visibility 0s linear 0s;
 }
 
 .output-pane:hover .output-pane-action-button,
@@ -355,6 +360,11 @@ main {
   stroke-linejoin: round;
   transform: scale(1);
   transition: transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.output-pane-audio-button svg {
+  width: 1.4rem;
+  height: 1.4rem;
 }
 
 /* .output-pane-action-button:hover {
@@ -743,6 +753,20 @@ main {
   .output-pane-actions {
     top: 0.1rem;
     right: 0.1rem;
+  }
+
+  .output-pane-actions-left {
+    left: 0.1rem;
+    right: auto;
+  }
+
+  .output-pane-action-button {
+    width: 1.7rem;
+    height: 1.7rem;
+  }
+
+  .output-pane-action-button.output-pane-copy-button-selected svg {
+    transform: scale(0.8);
   }
 
   .input-pane-spinner {
