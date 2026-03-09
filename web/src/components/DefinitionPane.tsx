@@ -27,15 +27,21 @@ type DefinitionPaneProps = {
   className?: string
   showHeader: boolean
   animateOnMount?: boolean
+  isEmbedded?: boolean
 }
 
 const DefinitionPane = ({
-  id, title, ariaLabel, value, className, showHeader, animateOnMount
+  id, title, ariaLabel, value, className, showHeader, animateOnMount, isEmbedded
 }: DefinitionPaneProps) => {
   const shouldAnimateOnMountRef = useRef(!!animateOnMount)
   const initialParts = splitDefinitionValue(value)
   const previousPrefixTextRef = useRef(initialParts.prefixText)
-  const paneClassName = ["definition-pane", className].filter(Boolean).join(" ")
+  const paneClassName = [
+    "definition-pane",
+    isEmbedded ? "definition-pane-embedded" : "",
+    className
+  ].filter(Boolean).join(" ")
+  const PaneTag = isEmbedded ? "div" : "section"
   const [prefixText, setPrefixText] = useState(initialParts.prefixText)
   const initialSuffixText = shouldAnimateOnMountRef.current ? "" : initialParts.suffixText
   const [text, setText] = useState(initialSuffixText)
@@ -109,7 +115,7 @@ const DefinitionPane = ({
   }, [desiredText, text])
 
   return (
-    <section
+    <PaneTag
       className={paneClassName}
       aria-labelledby={showHeader ? id : undefined}
       aria-label={showHeader ? undefined : ariaLabel}
@@ -130,10 +136,10 @@ const DefinitionPane = ({
           key={fadeVersion}
           className={`definition-pane-value-fade-in${isFadeVisible ? " is-visible" : ""}`}
         >
-          {`${desiredText}`}
+          {text}
         </span>
       </div>
-    </section>
+    </PaneTag>
   )
 }
 

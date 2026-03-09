@@ -4,12 +4,11 @@ import {
   Client, RequestSnapshot, isLocal, isMobile, readTargetLanguage, writeTargetLanguage
 } from "@piggo-translate/web"
 import {
-  Languages, WordDefinition, WordToken, splitPinyin, isLanguageCode, isLanguageValueLower,
-  languageCodeToValue, languageValueToCode, LanguageCode, LanguageValueLower
+  Hsk1Characters, Languages, WordDefinition, WordToken, splitPinyin, isLanguageCode,
+  isLanguageValueLower, languageCodeToValue, languageValueToCode, LanguageCode, LanguageValueLower
 } from "@piggo-translate/core"
 import { startTransition, useEffect, useMemo, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
-import { lingoCategories } from "./lingoCategories"
 
 const isSpaceSeparatedLanguage = (language: string) => ![
   "chinese (simplified)", "japanese"
@@ -230,7 +229,8 @@ const App = () => {
   const initialUrlPrefillRef = useRef(getUrlPrefillState())
   const [inputText, setInputText] = useState(() => initialUrlPrefillRef.current.text)
   const [isPiggoLingoVisible, setIsPiggoLingoVisible] = useState(false)
-  const [expandedLingoCategories, setExpandedLingoCategories] = useState<string[]>([])
+  const [titleIconSpinTick, setTitleIconSpinTick] = useState(0)
+  const [isTitleIconSpinning, setIsTitleIconSpinning] = useState(false)
   const [outputWords, setOutputWords] = useState<WordToken[]>([])
   const [isTransliterationVisible, setIsTransliterationVisible] = useState(true)
   const [errorText, setErrorText] = useState("")
@@ -873,75 +873,80 @@ const App = () => {
       }}>
         <button
           type="button"
-          className="title-icon-button"
+          className={`title-icon-button${isTitleIconSpinning ? " title-icon-button-spinning" : ""}`}
           onClick={() => {
+            setIsTitleIconSpinning(true)
+            setTitleIconSpinTick((value) => value + 1)
             startTransition(() => {
               setIsPiggoLingoVisible((value) => !value)
             })
           }}
           aria-label={isPiggoLingoVisible ? "Show Piggo Translate" : "Show Piggo Lingo"}
           aria-pressed={isPiggoLingoVisible}
+          disabled={isTitleIconSpinning}
         >
-          <img src="favicon.svg" alt="" aria-hidden="true" className="title-icon fade-in" draggable={false} />
+          <img
+            key={titleIconSpinTick}
+            src="favicon.svg"
+            alt=""
+            aria-hidden="true"
+            className={`title-icon${titleIconSpinTick ? " title-icon-spinning" : ""}`}
+            draggable={false}
+            onAnimationEnd={() => {
+              setIsTitleIconSpinning(false)
+            }}
+          />
         </button>
-        <p className="header-title">{isPiggoLingoVisible ? "Piggo Lingo" : "Piggo Translate"}</p>
+        <p className="header-title" aria-live="polite">
+          <span
+            className={`header-title-text${isPiggoLingoVisible ? "" : " header-title-text-visible"}`}
+            aria-hidden={isPiggoLingoVisible}
+          >
+            Piggo Translate
+          </span>
+          <span
+            className={`header-title-text${isPiggoLingoVisible ? " header-title-text-visible" : ""}`}
+            aria-hidden={!isPiggoLingoVisible}
+          >
+            Piggo Lingo
+          </span>
+        </p>
       </section>
 
       {isPiggoLingoVisible ? (
-        <section className="lingo-category-grid" aria-label="Piggo Lingo categories">
-          {lingoCategories.map((category) => {
-            const isExpanded = expandedLingoCategories.includes(category.title)
-            const categoryContentId = `${category.title.toLowerCase().replace(/\s+/g, "-")}-entries`
+        <section className="pane-stack lingo-character-grid" aria-label="Piggo Lingo HSK1 words">
+          {Hsk1Characters.map(({ id, character, pinyin, definition }) => {
+            const definitionValue = pinyin
+              ? `${character} (${pinyin}) — ${definition}`
+              : `${character} — ${definition}`
 
             return (
-              <button
-                key={category.title}
-                type="button"
-                className={`lingo-category-card fade-in${isExpanded ? " is-expanded" : ""}`}
-                aria-expanded={isExpanded}
-                aria-controls={categoryContentId}
-                onClick={() => {
-                  setExpandedLingoCategories((currentCategories) => {
-                    if (currentCategories.includes(category.title)) {
-                      return currentCategories.filter((title) => title !== category.title)
-                    }
-
-                    return [...currentCategories, category.title]
-                  })
-                }}
-                >
-                  <div>
-                    <div className="lingo-category-copy">
-                    {/* <p className="lingo-category-eyebrow">Category</p> */}
-                    <h2 className="lingo-category-title">{category.title}</h2>
-                    {/* <p className="lingo-category-description">{category.description}</p> */}
-                  </div>
-                  <span className="lingo-category-toggle-label">
-                    {/* {isExpanded ? "Hide characters" : "Show characters"} */}
-                  </span>
-                  </div>
-
-                <div
-                  id={categoryContentId}
-                  className={`lingo-category-entry-region${isExpanded ? " is-expanded" : ""}`}
-                >
-                  <div className="lingo-category-entry-region-inner">
-                    <div className="lingo-category-entry-grid">
-                      {category.entries.map((entry) => {
-                        return (
-                          <div key={entry.id} className="lingo-category-entry">
-                            <p className="lingo-category-character">{entry.character}</p>
-                            <div className="lingo-category-entry-copy">
-                              <p className="lingo-category-entry-meaning">{entry.primaryMeaning}</p>
-                              <p className="lingo-category-entry-pinyin">{entry.primaryPinyin}</p>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </button>
+              <section
+                key={id}
+                className="lingo-character-card input-pane-block fade-in"
+                aria-label={`HSK1 word ${character}`}
+              >
+                <OutputPane
+                  id={`${id}-output`}
+                  title=""
+                  showHeader={false}
+                  ariaLabel={`HSK1 word ${character}`}
+                  value={character}
+                  className="lingo-character-output"
+                  footer={(
+                    <DefinitionPane
+                      id={`${id}-definition`}
+                      title=""
+                      showHeader={false}
+                      animateOnMount
+                      isEmbedded
+                      className="lingo-character-definition"
+                      ariaLabel={`Definition for ${character}`}
+                      value={definitionValue}
+                    />
+                  )}
+                />
+              </section>
             )
           })}
         </section>
