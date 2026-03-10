@@ -625,11 +625,7 @@ main {
   display: inline;
   opacity: 0;
   filter: blur(0.3px);
-  /* transform: translateY(0.12rem); */
   transition: all 1000ms ease;
-    /* opacity 560ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 560ms cubic-bezier(0.22, 1, 0.36, 1),
-    filter 560ms ease-out; */
   user-select: text;
   -webkit-user-select: text;
 }
