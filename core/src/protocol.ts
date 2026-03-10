@@ -22,7 +22,7 @@ export type WordDefinition = {
 export type WsDefinitionsRequest = {
   type: "translate.definitions.request"
   requestId: string
-  word: string
+  words: string[]
   context: string
   targetLanguage: string
 }

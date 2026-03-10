@@ -15,7 +15,7 @@ export type TranslateRequestInput = {
 }
 
 export type DefinitionsRequestInput = {
-  word: string
+  words: string[]
   context: string
   targetLanguage: string
 }
@@ -66,11 +66,15 @@ const getRequestSignature = ({ text, targetLanguage }: { text: string, targetLan
 }
 
 const getDefinitionRequestSignature = (
-  word: string,
+  words: string[],
   context: string,
   targetLanguage: string
 ) => {
-  return `${targetLanguage}::${normalizeDefinition(word)}::${normalizeText(context)}`
+  const normalizedWords = Array.from(
+    new Set(words.map((word) => normalizeDefinition(word)).filter(Boolean))
+  )
+
+  return `${targetLanguage}::${normalizedWords.join(",")}::${normalizeText(context)}`
 }
 
 const getGrammarRequestSignature = (
@@ -92,8 +96,9 @@ export const Client = (options: ClientOptions): Client => {
   let currentNormalizedInputText = ""
   let lastRequestedSignature = ""
   let definitionBatchId = 0
-  const definitionsRequestById = new Map<string, { signature: string, batchId: number }>()
-  const definitionRequestSignaturesInFlight = new Set<string>()
+  let latestDefinitionsRequestId = ""
+  let latestDefinitionsRequestSignature = ""
+  let latestDefinitionsRequestBatchId = 0
   let latestGrammarRequestId = ""
   let latestGrammarRequestSignature = ""
   let latestAudioRequestId = ""
@@ -109,8 +114,9 @@ export const Client = (options: ClientOptions): Client => {
 
   const clearDefinitionRequestState = () => {
     definitionBatchId += 1
-    definitionsRequestById.clear()
-    definitionRequestSignaturesInFlight.clear()
+    latestDefinitionsRequestId = ""
+    latestDefinitionsRequestSignature = ""
+    latestDefinitionsRequestBatchId = definitionBatchId
     options.onDefinitionLoadingChange(false)
   }
 
@@ -169,36 +175,36 @@ export const Client = (options: ClientOptions): Client => {
   }
 
   const sendDefinitionsRequest = (requestInput: DefinitionsRequestInput) => {
-    const normalizedWord = normalizeDefinition(requestInput.word)
+    const normalizedWords = Array.from(
+      new Set(requestInput.words.map((word) => normalizeDefinition(word)).filter(Boolean))
+    )
     const normalizedContext = normalizeText(requestInput.context)
 
-    if (!normalizedWord || !normalizedContext || !socket || socket.readyState !== WebSocket.OPEN) {
+    if (!normalizedWords.length || !normalizedContext || !socket || socket.readyState !== WebSocket.OPEN) {
       return
     }
 
     const requestSignature = getDefinitionRequestSignature(
-      normalizedWord,
+      normalizedWords,
       normalizedContext,
       requestInput.targetLanguage
     )
 
-    if (definitionRequestSignaturesInFlight.has(requestSignature)) {
+    if (latestDefinitionsRequestSignature === requestSignature) {
       return
     }
 
     requestCounter += 1
     const requestId = `${Date.now()}-${requestCounter}`
-    definitionsRequestById.set(requestId, {
-      signature: requestSignature,
-      batchId: definitionBatchId
-    })
-    definitionRequestSignaturesInFlight.add(requestSignature)
+    latestDefinitionsRequestId = requestId
+    latestDefinitionsRequestSignature = requestSignature
+    latestDefinitionsRequestBatchId = definitionBatchId
     options.onDefinitionLoadingChange(true)
 
     const request: WsDefinitionsRequest = {
       type: "translate.definitions.request",
       requestId,
-      word: normalizedWord,
+      words: normalizedWords,
       context: normalizedContext,
       targetLanguage: requestInput.targetLanguage
     }
@@ -298,19 +304,17 @@ export const Client = (options: ClientOptions): Client => {
       }
 
       if (message.type === "translate.definitions.success") {
-        const requestState = definitionsRequestById.get(message.requestId)
-
-        if (!requestState || requestState.batchId !== definitionBatchId) {
+        if (
+          message.requestId !== latestDefinitionsRequestId ||
+          latestDefinitionsRequestBatchId !== definitionBatchId
+        ) {
           return
         }
 
-        definitionsRequestById.delete(message.requestId)
-        definitionRequestSignaturesInFlight.delete(requestState.signature)
+        latestDefinitionsRequestId = ""
+        latestDefinitionsRequestSignature = ""
         options.onDefinitionsSuccess(message.definitions)
-
-        if (!definitionsRequestById.size) {
-          options.onDefinitionLoadingChange(false)
-        }
+        options.onDefinitionLoadingChange(false)
         return
       }
 
@@ -337,20 +341,12 @@ export const Client = (options: ClientOptions): Client => {
       if (
         message.type === "translate.error" &&
         message.requestId &&
-        definitionsRequestById.has(message.requestId)
+        message.requestId === latestDefinitionsRequestId
       ) {
-        const requestState = definitionsRequestById.get(message.requestId)
-
-        if (requestState) {
-          definitionRequestSignaturesInFlight.delete(requestState.signature)
-        }
-
-        definitionsRequestById.delete(message.requestId)
+        latestDefinitionsRequestId = ""
+        latestDefinitionsRequestSignature = ""
         options.onDefinitionsError()
-
-        if (!definitionsRequestById.size) {
-          options.onDefinitionLoadingChange(false)
-        }
+        options.onDefinitionLoadingChange(false)
         return
       }
 

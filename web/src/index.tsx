@@ -806,12 +806,10 @@ const App = () => {
     if (!isSocketOpen) return
 
     definitionContextRef.current = outputText
-    missingWords.forEach((word) => {
-      clientRef.current?.sendDefinitionsRequest({
-        word,
-        context: outputText,
-        targetLanguage
-      })
+    clientRef.current?.sendDefinitionsRequest({
+      words: missingWords,
+      context: outputText,
+      targetLanguage
     })
   }, [definitionSelectionWords, isSocketOpen, outputText, targetLanguage])
 

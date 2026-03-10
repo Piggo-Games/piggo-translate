@@ -30,7 +30,7 @@ const parseTranslateWsMessage = (rawMessage: unknown): { error: string } | ({
 } | {
   type: "translate.definitions.request"
   requestId: string
-  word: string
+  words: string[]
   context: string
   targetLanguage: string
 } | {
@@ -55,7 +55,7 @@ const parseTranslateWsMessage = (rawMessage: unknown): { error: string } | ({
     requestId?: unknown
     text?: unknown
     targetLanguage?: unknown
-    word?: unknown
+    words?: unknown
     context?: unknown
   }
 
@@ -153,14 +153,22 @@ const parseTranslateWsMessage = (rawMessage: unknown): { error: string } | ({
     }
   }
 
-  const word = typeof message.word === "string" ? message.word.trim() : ""
+  const words = Array.isArray(message.words)
+    ? Array.from(
+      new Set(
+        message.words
+          .map((word) => typeof word === "string" ? word.trim() : "")
+          .filter(Boolean)
+      )
+    )
+    : []
   const context = typeof message.context === "string" ? message.context.trim() : ""
   const normalizedTargetLanguage =
     typeof message.targetLanguage === "string" ? message.targetLanguage.trim() : ""
 
-  if (!word) {
+  if (!words.length) {
     return {
-      error: "Websocket message must include a non-empty 'word' string"
+      error: "Websocket message must include a non-empty 'words' string array"
     }
   }
 
@@ -179,7 +187,7 @@ const parseTranslateWsMessage = (rawMessage: unknown): { error: string } | ({
   return {
     type: "translate.definitions.request",
     requestId: message.requestId.trim(),
-    word,
+    words,
     context,
     targetLanguage: normalizedTargetLanguage
   }
@@ -342,7 +350,7 @@ export const createApiServer = () => {
 
         try {
           const definitions = await openAiTranslator.getDefinitions(
-            parsedMessage.word,
+            parsedMessage.words,
             parsedMessage.targetLanguage,
             parsedMessage.context
           )

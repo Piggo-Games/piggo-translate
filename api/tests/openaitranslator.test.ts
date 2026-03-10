@@ -1,5 +1,39 @@
 import { describe, expect, test } from "bun:test"
-import { OpenAiTranslator } from "../src/translate/OpenAiTranslator"
+import { OpenAiTranslator, parseStructuredDefinitions } from "../src/translate/OpenAiTranslator"
+
+describe("parseStructuredDefinitions", () => {
+  test("returns consolidated definitions for a requested word list", () => {
+    const result = parseStructuredDefinitions(
+      JSON.stringify({
+        definitions: [
+          { word: "你", definition: "second-person pronoun" },
+          { word: "好", definition: "good; well" }
+        ]
+      }),
+      ["你", "好"]
+    )
+
+    expect(result).toEqual({
+      definitions: [
+        { word: "你", definition: "second-person pronoun" },
+        { word: "好", definition: "good; well" }
+      ]
+    })
+  })
+
+  test("throws when a requested word is missing from the structured response", () => {
+    expect(() => {
+      parseStructuredDefinitions(
+        JSON.stringify({
+          definitions: [
+            { word: "你", definition: "second-person pronoun" }
+          ]
+        }),
+        ["你", "好"]
+      )
+    }).toThrow("missing definitions for: 好")
+  })
+})
 
 const integrationTest = process.env.OPENAI_API_KEY ? test : test.skip
 

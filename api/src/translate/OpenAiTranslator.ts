@@ -425,14 +425,21 @@ export const OpenAiTranslator = (): Translator => {
 
       return parseStructuredTranslation(rawText)
     },
-    getDefinitions: async (word, targetLanguage, context) => {
-      const rawText = await runOpenAiRealtimeRequest(
-        word,
-        buildDefinitionInstructions(targetLanguage, context.trim(), word.length)
+    getDefinitions: async (words, targetLanguage, context) => {
+      const normalizedWords = Array.from(
+        new Set(words.map((word) => word.trim()).filter(Boolean))
       )
-      // console.log(rawText)
 
-      return parseStructuredDefinitions(rawText, word).definitions
+      if (!normalizedWords.length) {
+        throw new Error("Definition input cannot be empty")
+      }
+
+      const rawText = await runOpenAiRealtimeRequest(
+        JSON.stringify({ words: normalizedWords }),
+        buildDefinitionInstructions(targetLanguage, context.trim(), normalizedWords)
+      )
+
+      return parseStructuredDefinitions(rawText, normalizedWords).definitions
     },
     getGrammar: async (text, targetLanguage) => {
       const trimmedText = text.trim()
@@ -570,18 +577,23 @@ const buildTranslationInstructions = (targetLanguage: string) => {
   )
 }
 
-const buildDefinitionInstructions = (targetLanguage: string, sentence: string, wordLength: number) => {
+const buildDefinitionInstructions = (targetLanguage: string, sentence: string, words: string[]) => {
+  const shouldExplainChineseRadicals = words.some((word) => word.length === 1)
+
   return (
     `You write concise explanations for words.\n` +
     `Write the explanation in english.\n` +
     "The goal is to help someone understand a new word in their non-native language.\n" +
-    "describe the etymology/usage/grammar of the word.\n" +
-    `The language of the word to define is ${targetLanguage}.\n` +
-    `The surrounding context for the word is: "${sentence}"\n` +
-    "Return only valid JSON with exactly this shape: {\"definition\":\"...\"}\n" +
+    "Describe the etymology, usage, or grammar of each item.\n" +
+    `The language of the words to define is ${targetLanguage}.\n` +
+    `The surrounding context for the words is: "${sentence}"\n` +
+    "The user message will be JSON with this shape: {\"words\":[\"...\"]}\n" +
+    "Return only valid JSON with exactly this shape: {\"definitions\":[{\"word\":\"...\",\"definition\":\"...\"}]}\n" +
+    "Return one object for each requested word.\n" +
+    "Preserve the original word text exactly.\n" +
     `Keep the definition under 20 words.\n` +
-    (wordLength === 1 ? "If the word is a Chinese character, explain its component radicals.\n" : "") +
-    "Do not include the word itself.\n" +
+    (shouldExplainChineseRadicals ? "If a word is a single Chinese character, explain its component radicals.\n" : "") +
+    "It is okay if the definition mentions the word when needed for mapping clarity.\n" +
     "Do not repeat the provided context.\n" +
     "Do not include markdown or code fences."
   )
@@ -609,7 +621,7 @@ const buildAudioPrompt = (text: string, targetLanguage: string) => {
   )
 }
 
-const parseStructuredDefinitions = (rawText: string, requestedWord: string) => {
+export const parseStructuredDefinitions = (rawText: string, requestedWords: string[]) => {
   const trimmed = rawText.trim()
   const jsonCandidate = trimmed
     .replace(/^```(?:json)?\s*/i, "")
@@ -629,14 +641,6 @@ const parseStructuredDefinitions = (rawText: string, requestedWord: string) => {
     throw new Error("OpenAI returned invalid structured definitions JSON")
   }
 
-  const parsedDefinitionText =
-    parsed &&
-      typeof parsed === "object" &&
-      "definition" in parsed &&
-      typeof parsed.definition === "string"
-      ? parsed.definition.trim()
-      : ""
-
   const parsedDefinitions =
     parsed &&
       typeof parsed === "object" &&
@@ -653,16 +657,18 @@ const parseStructuredDefinitions = (rawText: string, requestedWord: string) => {
     }))
     .filter((value) => !!value.word && !!value.definition)
 
-  if (!normalizedDefinitions.length && !parsedDefinitionText) {
+  if (!normalizedDefinitions.length) {
     throw new Error("OpenAI structured definitions response missing 'definitions'")
   }
 
-  const definitionByWord = new Map(normalizedDefinitions.map((item) => [item.word, item.definition]))
-  const fallbackDefinition = parsedDefinitionText || definitionByWord.get(requestedWord) || ""
-  const definitions = [{
-    word: requestedWord,
-    definition: fallbackDefinition
-  }].filter((item) => !!item.definition)
+  const requestedWordSet = new Set(requestedWords.map((word) => word.trim()).filter(Boolean))
+  const definitions = normalizedDefinitions.filter(({ word }) => requestedWordSet.has(word))
+  const definitionWordSet = new Set(definitions.map(({ word }) => word))
+  const missingWords = requestedWords.filter((word) => !definitionWordSet.has(word))
+
+  if (missingWords.length) {
+    throw new Error(`OpenAI structured definitions response missing definitions for: ${missingWords.join(", ")}`)
+  }
 
   return { definitions }
 }
