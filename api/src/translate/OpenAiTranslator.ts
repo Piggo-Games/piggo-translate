@@ -29,6 +29,13 @@ type OpenAiRealtimeServerEvent = {
   }
 }
 
+type OpenAiRealtimeOutputModality = "text" | "audio"
+
+type OpenAiRealtimeAudioFormat = {
+  type: "audio/pcm"
+  rate: 24000
+}
+
 type TranslationStructuredOutput = {
   words: WordToken[]
 }
@@ -43,20 +50,93 @@ type DefinitionsStructuredOutput = {
   definitions: WordDefinition[]
 }
 
+const defaultRealtimeAudioFormat = {
+  type: "audio/pcm",
+  rate: 24000
+} satisfies OpenAiRealtimeAudioFormat
+
+export const buildRealtimeSessionUpdate = (
+  voice: string,
+  format: OpenAiRealtimeAudioFormat = defaultRealtimeAudioFormat
+) => {
+  return {
+    type: "session.update",
+    session: {
+      type: "realtime",
+      audio: {
+        output: {
+          voice,
+          format
+        }
+      }
+    }
+  }
+}
+
+export const buildRealtimeResponseCreate = ({
+  prompt,
+  instructions,
+  outputModalities,
+  audioVoice,
+  audioFormat = defaultRealtimeAudioFormat,
+  maxOutputTokens = 1024
+}: {
+  prompt: string
+  instructions: string
+  outputModalities: OpenAiRealtimeOutputModality[]
+  audioVoice?: string
+  audioFormat?: OpenAiRealtimeAudioFormat
+  maxOutputTokens?: number
+}) => {
+  const response = {
+    conversation: "none",
+    input: [
+      {
+        type: "message",
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: prompt
+          }
+        ]
+      }
+    ],
+    output_modalities: outputModalities,
+    max_output_tokens: maxOutputTokens,
+    instructions
+  }
+
+  if (!outputModalities.includes("audio")) return { type: "response.create", response }
+
+  return {
+    type: "response.create",
+    response: {
+      ...response,
+      audio: {
+        output: {
+          voice: audioVoice,
+          format: audioFormat
+        }
+      }
+    }
+  }
+}
+
 export const OpenAiTranslator = (): Translator => {
 
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error("Missing OPENAI_API_KEY")
 
-  const model = "gpt-realtime-1.5"// "gpt-realtime-1.5"
+  const model = "gpt-realtime-1.5"
   const timeoutMs = 10000
   const defaultAudioVoice = "sage" // marin sage
-  const defaultAudioFormat = "pcm16"
+  const defaultAudioFormat = defaultRealtimeAudioFormat
 
   type QueuedRequest = {
     prompt: string
     instructions: string
-    modalities: ("text" | "audio")[]
+    outputModalities: OpenAiRealtimeOutputModality[]
     audioVoice?: string
     maxOutputTokens?: number
     resolveText?: (value: string) => void
@@ -206,7 +286,7 @@ export const OpenAiTranslator = (): Translator => {
     const failedStatus =
       parsedEvent.response?.status &&
       parsedEvent.response.status !== "completed"
-    const isAudioRequest = activeRequest.modalities.includes("audio")
+    const isAudioRequest = activeRequest.outputModalities.includes("audio")
     const hasAudioOutput = activeRequest.streamedAudioChunks.length > 0
     const isAcceptableIncompleteAudioResponse =
       parsedEvent.response?.status === "incomplete" &&
@@ -261,8 +341,7 @@ export const OpenAiTranslator = (): Translator => {
         {
           // @ts-expect-error
           headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "OpenAI-Beta": "realtime=v1"
+            Authorization: `Bearer ${apiKey}`
           }
         }
       )
@@ -272,13 +351,7 @@ export const OpenAiTranslator = (): Translator => {
         ws = nextSocket
         console.log("[openai] realtime websocket opened")
         nextSocket.send(
-          JSON.stringify({
-            type: "session.update",
-            session: {
-              voice: defaultAudioVoice,
-              output_audio_format: defaultAudioFormat
-            }
-          })
+          JSON.stringify(buildRealtimeSessionUpdate(defaultAudioVoice, defaultAudioFormat))
         )
         resolve(nextSocket)
       }
@@ -328,27 +401,16 @@ export const OpenAiTranslator = (): Translator => {
     const socket = await ensureConnected()
 
     socket.send(
-      JSON.stringify({
-        type: "response.create",
-        response: {
-          conversation: "none",
-          input: [
-            {
-              type: "message",
-              role: "user",
-              content: [
-                {
-                  type: "input_text",
-                  text: activeRequest.prompt
-                }
-              ]
-            }
-          ],
-          modalities: activeRequest.modalities,
-          max_output_tokens: activeRequest.maxOutputTokens || 1024,
-          instructions: activeRequest.instructions
-        }
-      })
+      JSON.stringify(
+        buildRealtimeResponseCreate({
+          prompt: activeRequest.prompt,
+          instructions: activeRequest.instructions,
+          outputModalities: activeRequest.outputModalities,
+          audioVoice: activeRequest.audioVoice,
+          audioFormat: defaultAudioFormat,
+          maxOutputTokens: activeRequest.maxOutputTokens || 1024
+        })
+      )
     )
   }
 
@@ -390,7 +452,7 @@ export const OpenAiTranslator = (): Translator => {
       queuedRequests.push({
         prompt,
         instructions,
-        modalities: ["text"],
+        outputModalities: ["text"],
         resolveText: resolve,
         maxOutputTokens: 1024,
         reject: (error) => reject(error)
@@ -405,7 +467,7 @@ export const OpenAiTranslator = (): Translator => {
       queuedRequests.push({
         prompt: buildAudioPrompt(text, targetLanguage),
         instructions: "You are a text-to-speech engine. Speak the provided text exactly, with natural pacing.",
-        modalities: ["audio", "text"],
+        outputModalities: ["audio"],
         audioVoice: defaultAudioVoice,
         resolveAudio: resolve,
         maxOutputTokens: 256,
