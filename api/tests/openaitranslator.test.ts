@@ -1,5 +1,99 @@
 import { describe, expect, test } from "bun:test"
-import { OpenAiTranslator, parseStructuredDefinitions } from "../src/translate/OpenAiTranslator"
+import {
+  buildRealtimeResponseCreate, buildRealtimeSessionUpdate, OpenAiTranslator, parseStructuredDefinitions
+} from "../src/translate/OpenAiTranslator"
+
+describe("OpenAI Realtime GA events", () => {
+  test("builds the GA session update shape", () => {
+    expect(buildRealtimeSessionUpdate("sage")).toEqual({
+      type: "session.update",
+      session: {
+        type: "realtime",
+        audio: {
+          output: {
+            voice: "sage",
+            format: {
+              type: "audio/pcm",
+              rate: 24000
+            }
+          }
+        }
+      }
+    })
+  })
+
+  test("builds text responses with GA output modalities", () => {
+    const event = buildRealtimeResponseCreate({
+      prompt: "hello",
+      instructions: "translate",
+      outputModalities: ["text"]
+    })
+
+    expect(event).toEqual({
+      type: "response.create",
+      response: {
+        conversation: "none",
+        input: [
+          {
+            type: "message",
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: "hello"
+              }
+            ]
+          }
+        ],
+        output_modalities: ["text"],
+        max_output_tokens: 1024,
+        instructions: "translate"
+      }
+    })
+    expect("modalities" in event.response).toBe(false)
+  })
+
+  test("builds audio responses with one output modality and nested audio config", () => {
+    const event = buildRealtimeResponseCreate({
+      prompt: "bonjour",
+      instructions: "speak",
+      outputModalities: ["audio"],
+      audioVoice: "sage",
+      maxOutputTokens: 256
+    })
+
+    expect(event).toEqual({
+      type: "response.create",
+      response: {
+        conversation: "none",
+        input: [
+          {
+            type: "message",
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: "bonjour"
+              }
+            ]
+          }
+        ],
+        output_modalities: ["audio"],
+        max_output_tokens: 256,
+        instructions: "speak",
+        audio: {
+          output: {
+            voice: "sage",
+            format: {
+              type: "audio/pcm",
+              rate: 24000
+            }
+          }
+        }
+      }
+    })
+  })
+})
 
 describe("parseStructuredDefinitions", () => {
   test("returns consolidated definitions for a requested word list", () => {
