@@ -1,6 +1,6 @@
 {
   "name": "@piggo-translate/web",
-  "version": "0.1.1",
+  "version": "0.6.1",
   "main": "./main.ts",
   "scripts": {
     "dev": "bun dev-compile & bun dev-serve",
@@ -13,7 +13,7 @@
     "@types/react-dom": "^19.2.2"
   },
   "dependencies": {
-    "@piggo-translate/core": "0.1.1",
+    "@piggo-translate/core": "0.6.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   }
