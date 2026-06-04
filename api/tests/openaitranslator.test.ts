@@ -9,6 +9,9 @@ describe("OpenAI Realtime GA events", () => {
       type: "session.update",
       session: {
         type: "realtime",
+        reasoning: {
+          effort: "minimal"
+        },
         audio: {
           output: {
             voice: "sage",
