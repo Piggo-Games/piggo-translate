@@ -734,7 +734,7 @@ const buildDefinitionInstructions = (targetLanguage: string, sentence: string, w
     "Return one object for each requested word.\n" +
     "Preserve the original word text exactly.\n" +
     `Keep the definition under 20 words.\n` +
-    (targetLanguage.startsWith("Chinese") ? "If a word is a single Chinese character, explain its component radicals.\n" : "") +
+    (targetLanguage.startsWith("Chinese") ? "When explaining a Chinese character, explain its component radicals in detail.\n" : "") +
     "Do not repeat the provided context.\n" +
     "Do not include markdown."
   )

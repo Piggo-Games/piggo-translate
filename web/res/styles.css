@@ -239,7 +239,7 @@ main {
   justify-self: center;
   width: 100%;
   max-width: 600px;
-  transition: all 500ms ease;
+  transition: opacity 200ms ease, transform 200ms ease;
 }
 
 .input-pane-block {
@@ -600,7 +600,7 @@ main {
   overflow-wrap: anywhere;
   word-break: break-word;
   text-align: center;
-  transition: all 2000ms ease;
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
 .definition-pane-text-content {
@@ -632,16 +632,13 @@ main {
 .definition-pane-value-fade-in {
   display: inline;
   opacity: 0;
-  filter: blur(0.3px);
-  transition: all 1000ms ease;
+  transition: opacity 420ms cubic-bezier(0.16, 1, 0.3, 1);
   user-select: text;
   -webkit-user-select: text;
 }
 
 .definition-pane-value-fade-in.is-visible {
   opacity: 1;
-  filter: blur(0);
-  transform: translateY(0);
 }
 
 .output-pane-text-content-selectable {

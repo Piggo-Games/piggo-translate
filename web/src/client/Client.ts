@@ -270,6 +270,13 @@ export const Client = (options: ClientOptions): Client => {
   const connectSocket = () => {
     clearReconnectTimeout()
 
+    if (
+      socket &&
+      (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)
+    ) {
+      return
+    }
+
     const nextSocket = new WebSocket(getTranslateWsUrl())
     console.log("Connecting to websocket at", getTranslateWsUrl())
     socket = nextSocket

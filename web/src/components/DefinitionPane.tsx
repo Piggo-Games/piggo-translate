@@ -60,6 +60,7 @@ const DefinitionPane = ({
       : { prefixText: prefix, suffixText: value }
     const didPrefixChange = previousPrefixTextRef.current !== nextParts.prefixText
 
+    setIsFadeVisible(false)
     setPrefixText(nextParts.prefixText)
 
     if (didPrefixChange) {
@@ -72,16 +73,23 @@ const DefinitionPane = ({
   }, [prefix, value])
 
   useEffect(() => {
-    setIsFadeVisible(false)
+    if (!text) {
+      setIsFadeVisible(false)
+      return
+    }
 
+    let nextAnimationFrameId = 0
     const animationFrameId = window.requestAnimationFrame(() => {
-      setIsFadeVisible(true)
+      nextAnimationFrameId = window.requestAnimationFrame(() => {
+        setIsFadeVisible(true)
+      })
     })
 
     return () => {
       window.cancelAnimationFrame(animationFrameId)
+      window.cancelAnimationFrame(nextAnimationFrameId)
     }
-  }, [fadeVersion])
+  }, [fadeVersion, text])
 
   useEffect(() => {
     if (!value) {
