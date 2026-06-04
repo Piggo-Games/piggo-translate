@@ -48,6 +48,8 @@ type OpenAiRealtimeFunctionTool = {
   parameters: unknown
 }
 
+type OpenAiRealtimeReasoningEffort = "minimal" | "low" | "medium" | "high" | "xhigh"
+
 type TranslationStructuredOutput = {
   words: WordToken[]
 }
@@ -67,14 +69,20 @@ const defaultRealtimeAudioFormat = {
   rate: 24000
 } satisfies OpenAiRealtimeAudioFormat
 
+const defaultRealtimeReasoningEffort = "minimal" satisfies OpenAiRealtimeReasoningEffort
+
 export const buildRealtimeSessionUpdate = (
   voice: string,
-  format: OpenAiRealtimeAudioFormat = defaultRealtimeAudioFormat
+  format: OpenAiRealtimeAudioFormat = defaultRealtimeAudioFormat,
+  reasoningEffort: OpenAiRealtimeReasoningEffort = defaultRealtimeReasoningEffort
 ) => {
   return {
     type: "session.update",
     session: {
       type: "realtime",
+      reasoning: {
+        effort: reasoningEffort
+      },
       audio: {
         output: {
           voice,
