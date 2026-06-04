@@ -14,12 +14,11 @@ type InputPaneProps = {
   onChange?: (value: string) => void
   showHeader: boolean
   textareaRef?: MutableRefObject<HTMLTextAreaElement | null>
-  topLeftAction?: ReactNode
 }
 
 const InputPane = ({
   id, title, placeholder, ariaLabel, value, maxLength, className, afterTextarea, footer, autoFocus,
-  onChange, showHeader, textareaRef, topLeftAction
+  onChange, showHeader, textareaRef
 }: InputPaneProps) => {
   const localTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [text, setText] = useState(value)
@@ -46,12 +45,6 @@ const InputPane = ({
       {showHeader ? (
         <div className="input-pane-header">
           <h2 id={id}>{title}</h2>
-        </div>
-      ) : null}
-
-      {topLeftAction ? (
-        <div className="input-pane-actions">
-          {topLeftAction}
         </div>
       ) : null}
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import {
-  buildRealtimeResponseCreate, buildRealtimeSessionUpdate, OpenAiTranslator, parseStructuredDefinitions
+  buildRealtimeResponseCreate, buildRealtimeSessionUpdate, OpenAiTranslator, parseStructuredDefinitions, translationOutputTool
 } from "../src/translate/OpenAiTranslator"
 
 describe("OpenAI Realtime GA events", () => {
@@ -51,6 +51,26 @@ describe("OpenAI Realtime GA events", () => {
       }
     })
     expect("modalities" in event.response).toBe(false)
+  })
+
+  test("builds text responses with a forced structured output function tool", () => {
+    const event = buildRealtimeResponseCreate({
+      prompt: "hello",
+      instructions: "translate",
+      outputModalities: ["text"],
+      structuredOutputTool: translationOutputTool
+    })
+
+    expect(event.response).toMatchObject({
+      conversation: "none",
+      output_modalities: ["text"],
+      instructions: "translate",
+      tools: [translationOutputTool],
+      tool_choice: {
+        type: "function",
+        name: "return_translation"
+      }
+    })
   })
 
   test("builds audio responses with one output modality and nested audio config", () => {
@@ -104,6 +124,23 @@ describe("parseStructuredDefinitions", () => {
           { word: "好", definition: "good; well" }
         ]
       }),
+      ["你", "好"]
+    )
+
+    expect(result).toEqual({
+      definitions: [
+        { word: "你", definition: "second-person pronoun" },
+        { word: "好", definition: "good; well" }
+      ]
+    })
+  })
+
+  test("accepts an array of definitions from realtime output", () => {
+    const result = parseStructuredDefinitions(
+      JSON.stringify([
+        { word: "你", definition: "second-person pronoun" },
+        { word: "好", definition: "good; well" }
+      ]),
       ["你", "好"]
     )
 

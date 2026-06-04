@@ -1054,26 +1054,6 @@ const App = () => {
             afterTextarea={hasInputText && isSpinnerVisible ? (
               <span className="spinner input-pane-spinner" aria-hidden="true" />
             ) : null}
-            topLeftAction={(
-              <button
-                type="button"
-                className={`output-pane-action-button${didCopyInputLink ? " output-pane-copy-button-copied" : ""}${isInputLinkCopySelected ? " output-pane-copy-button-selected" : ""}`}
-                aria-label="Copy shareable link"
-                title={didCopyInputLink ? "Copied" : "Copy link"}
-                onPointerDown={(event) => {
-                  event.preventDefault()
-                }}
-                onClick={async () => {
-                  await copyReadableInputUrl()
-                }}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M14 5h6v6" />
-                  <path d="M10 14 20 4" />
-                  <path d="M20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5" />
-                </svg>
-              </button>
-            )}
             className="fade-in"
           />
 
@@ -1102,6 +1082,26 @@ const App = () => {
               copyValue={outputText}
               enableAudioButton={!isAudioPlaying}
               isAudioLoading={isAudioLoading}
+              topLeftAction={(
+                <button
+                  type="button"
+                  className={`output-pane-action-button${didCopyInputLink ? " output-pane-copy-button-copied" : ""}${isInputLinkCopySelected ? " output-pane-copy-button-selected" : ""}`}
+                  aria-label="Copy shareable link"
+                  title={didCopyInputLink ? "Copied" : "Copy link"}
+                  onPointerDown={(event) => {
+                    event.preventDefault()
+                  }}
+                  onClick={async () => {
+                    await copyReadableInputUrl()
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 5h6v6" />
+                    <path d="M10 14 20 4" />
+                    <path d="M20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5" />
+                  </svg>
+                </button>
+              )}
               onAudioClick={() => {
                 if (!outputText.trim()) {
                   return

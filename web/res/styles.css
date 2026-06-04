@@ -457,21 +457,6 @@ main {
   transition: opacity 300ms ease, transform 300ms ease, color 120ms ease, visibility 0s linear 0s;
 }
 
-.input-pane .output-pane-action-button {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translateY(-0.2rem) scale(0.96);
-}
-
-.input-pane:hover .output-pane-action-button {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transform: translateY(0) scale(1);
-  transition: opacity 300ms ease, transform 300ms ease, background-color 120ms ease, color 300ms ease, visibility 0s linear 0s;
-}
-
 .output-pane:hover .output-pane-action-button,
 .output-pane:focus-within .output-pane-action-button {
   opacity: 1;
