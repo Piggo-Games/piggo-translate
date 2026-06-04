@@ -327,6 +327,8 @@ const App = () => {
   const pendingGrammarRequestTextRef = useRef("")
   const inputLinkCopyFeedbackTimeoutRef = useRef<number | null>(null)
   const inputLinkCopySelectedTimeoutRef = useRef<number | null>(null)
+  const paneStackMarginTopRef = useRef("")
+  const paneStackMarginFrameRef = useRef<number | null>(null)
 
   const clearAudioPlayback = () => {
     setIsAudioPlaying(false)
@@ -509,22 +511,41 @@ const App = () => {
     if (isMobile()) return
 
     const updatePaneStackMarginTop = () => {
-      const minimumGapFromHeader = 16
-      const headerBottom = headerSection.getBoundingClientRect().bottom
-      const paneStackHeight = paneStack.getBoundingClientRect().height
-      const centeredTop = Math.max((window.innerHeight - paneStackHeight) / 2, 0)
-      const targetTop = Math.max(centeredTop, headerBottom + minimumGapFromHeader)
-      const marginTop = Math.max(targetTop - headerBottom - 40, 0)
+      if (paneStackMarginFrameRef.current !== null) return
 
-      paneStack.style.marginTop = `${marginTop}px`
+      paneStackMarginFrameRef.current = window.requestAnimationFrame(() => {
+        paneStackMarginFrameRef.current = null
+
+        const minimumGapFromHeader = 16
+        const headerBottom = headerSection.getBoundingClientRect().bottom
+        const paneStackHeight = paneStack.getBoundingClientRect().height
+        const centeredTop = Math.max((window.innerHeight - paneStackHeight) / 2, 0)
+        const targetTop = Math.max(centeredTop, headerBottom + minimumGapFromHeader)
+        const marginTop = Math.max(targetTop - headerBottom - 40, 0)
+        const nextMarginTop = `${Math.round(marginTop)}px`
+
+        if (nextMarginTop === paneStackMarginTopRef.current) return
+
+        paneStackMarginTopRef.current = nextMarginTop
+        paneStack.style.marginTop = nextMarginTop
+      })
     }
 
     const resizeObserver = new ResizeObserver(updatePaneStackMarginTop)
 
     resizeObserver.observe(paneStack)
+    resizeObserver.observe(headerSection)
+    window.addEventListener("resize", updatePaneStackMarginTop)
+    updatePaneStackMarginTop()
 
     return () => {
       resizeObserver.disconnect()
+      window.removeEventListener("resize", updatePaneStackMarginTop)
+
+      if (paneStackMarginFrameRef.current !== null) {
+        window.cancelAnimationFrame(paneStackMarginFrameRef.current)
+        paneStackMarginFrameRef.current = null
+      }
     }
   }, [])
 
@@ -1054,26 +1075,6 @@ const App = () => {
             afterTextarea={hasInputText && isSpinnerVisible ? (
               <span className="spinner input-pane-spinner" aria-hidden="true" />
             ) : null}
-            topLeftAction={(
-              <button
-                type="button"
-                className={`output-pane-action-button${didCopyInputLink ? " output-pane-copy-button-copied" : ""}${isInputLinkCopySelected ? " output-pane-copy-button-selected" : ""}`}
-                aria-label="Copy shareable link"
-                title={didCopyInputLink ? "Copied" : "Copy link"}
-                onPointerDown={(event) => {
-                  event.preventDefault()
-                }}
-                onClick={async () => {
-                  await copyReadableInputUrl()
-                }}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M14 5h6v6" />
-                  <path d="M10 14 20 4" />
-                  <path d="M20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5" />
-                </svg>
-              </button>
-            )}
             className="fade-in"
           />
 
@@ -1102,6 +1103,26 @@ const App = () => {
               copyValue={outputText}
               enableAudioButton={!isAudioPlaying}
               isAudioLoading={isAudioLoading}
+              topLeftAction={(
+                <button
+                  type="button"
+                  className={`output-pane-action-button${didCopyInputLink ? " output-pane-copy-button-copied" : ""}${isInputLinkCopySelected ? " output-pane-copy-button-selected" : ""}`}
+                  aria-label="Copy shareable link"
+                  title={didCopyInputLink ? "Copied" : "Copy link"}
+                  onPointerDown={(event) => {
+                    event.preventDefault()
+                  }}
+                  onClick={async () => {
+                    await copyReadableInputUrl()
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 5h6v6" />
+                    <path d="M10 14 20 4" />
+                    <path d="M20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5" />
+                  </svg>
+                </button>
+              )}
               onAudioClick={() => {
                 if (!outputText.trim()) {
                   return
@@ -1180,7 +1201,7 @@ const App = () => {
 
       {isLocal() && !isMobile() && (
         <span className="app-version" aria-label="App version">
-          v0.5.5
+          v0.6.1
         </span>
       )}
     </main>

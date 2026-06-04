@@ -1,12 +1,12 @@
 {
   "name": "@piggo-translate/api",
-  "version": "0.1.1",
+  "version": "0.6.1",
   "main": "main.ts",
   "scripts": {
     "dev": "bun --hot src/Api.ts",
     "prod": "bun src/Api.ts"
   },
   "dependencies": {
-    "@piggo-translate/core": "0.1.1"
+    "@piggo-translate/core": "0.6.1"
   }
 }

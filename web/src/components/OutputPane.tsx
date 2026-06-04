@@ -24,12 +24,13 @@ type OutputPaneProps = {
   enableAudioButton?: boolean
   isAudioLoading?: boolean
   onAudioClick?: () => void
+  topLeftAction?: ReactNode
 }
 
 const OutputPane = ({
   id, title, ariaLabel, value, className, footer, showHeader, onSelectionChange,
   animateOnMount, selectionWords, selectionTokens, selectionWordJoiner = " ", enableCopyButton,
-  copyValue, enableAudioButton, isAudioLoading, onAudioClick
+  copyValue, enableAudioButton, isAudioLoading, onAudioClick, topLeftAction
 }: OutputPaneProps) => {
   const textContentRef = useRef<HTMLDivElement | null>(null)
   const lastSelectionRef = useRef("")
@@ -473,48 +474,51 @@ const OutputPane = ({
         </div>
       ) : null}
 
-      {shouldRenderMobileCopyButton ? (
+      {topLeftAction || shouldRenderMobileCopyButton ? (
         <div className="output-pane-actions output-pane-actions-left">
-          <button
-            type="button"
-            className={`output-pane-action-button${didCopy ? " output-pane-copy-button-copied" : ""}${isCopySelected ? " output-pane-copy-button-selected" : ""}`}
-            aria-label="Copy output text"
-            title={didCopy ? "Copied" : "Copy"}
-            onPointerDown={(event) => {
-              event.preventDefault()
-            }}
-            onClick={async () => {
-              const copied = await copyTextToClipboard(copyValue ?? value)
+          {topLeftAction}
+          {shouldRenderMobileCopyButton ? (
+            <button
+              type="button"
+              className={`output-pane-action-button${didCopy ? " output-pane-copy-button-copied" : ""}${isCopySelected ? " output-pane-copy-button-selected" : ""}`}
+              aria-label="Copy output text"
+              title={didCopy ? "Copied" : "Copy"}
+              onPointerDown={(event) => {
+                event.preventDefault()
+              }}
+              onClick={async () => {
+                const copied = await copyTextToClipboard(copyValue ?? value)
 
-              if (!copied) {
-                return
-              }
+                if (!copied) {
+                  return
+                }
 
-              setDidCopy(true)
-              setIsCopySelected(true)
+                setDidCopy(true)
+                setIsCopySelected(true)
 
-              if (copySelectedTimeoutRef.current) {
-                window.clearTimeout(copySelectedTimeoutRef.current)
-              }
+                if (copySelectedTimeoutRef.current) {
+                  window.clearTimeout(copySelectedTimeoutRef.current)
+                }
 
-              copySelectedTimeoutRef.current = window.setTimeout(() => {
-                setIsCopySelected(false)
-              }, 200)
+                copySelectedTimeoutRef.current = window.setTimeout(() => {
+                  setIsCopySelected(false)
+                }, 200)
 
-              if (copyFeedbackTimeoutRef.current) {
-                window.clearTimeout(copyFeedbackTimeoutRef.current)
-              }
+                if (copyFeedbackTimeoutRef.current) {
+                  window.clearTimeout(copyFeedbackTimeoutRef.current)
+                }
 
-              copyFeedbackTimeoutRef.current = window.setTimeout(() => {
-                setDidCopy(false)
-              }, 1000)
-            }}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M8 8h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z" />
-              <path d="M5 16H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1" />
-            </svg>
-          </button>
+                copyFeedbackTimeoutRef.current = window.setTimeout(() => {
+                  setDidCopy(false)
+                }, 1000)
+              }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 8h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z" />
+                <path d="M5 16H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1" />
+              </svg>
+            </button>
+          ) : null}
         </div>
       ) : null}
     </section>

@@ -21,12 +21,17 @@ type OpenAiRealtimeServerEvent = {
       output_tokens?: number
     }
     output?: {
+      type?: string
+      arguments?: string
+      name?: string
       content?: {
         type?: string
         text?: string
       }[]
     }[]
   }
+  arguments?: string
+  name?: string
 }
 
 type OpenAiRealtimeOutputModality = "text" | "audio"
@@ -34,6 +39,13 @@ type OpenAiRealtimeOutputModality = "text" | "audio"
 type OpenAiRealtimeAudioFormat = {
   type: "audio/pcm"
   rate: 24000
+}
+
+type OpenAiRealtimeFunctionTool = {
+  type: "function"
+  name: string
+  description: string
+  parameters: unknown
 }
 
 type TranslationStructuredOutput = {
@@ -78,6 +90,7 @@ export const buildRealtimeResponseCreate = ({
   instructions,
   outputModalities,
   audioVoice,
+  structuredOutputTool,
   audioFormat = defaultRealtimeAudioFormat,
   maxOutputTokens = 1024
 }: {
@@ -85,6 +98,7 @@ export const buildRealtimeResponseCreate = ({
   instructions: string
   outputModalities: OpenAiRealtimeOutputModality[]
   audioVoice?: string
+  structuredOutputTool?: OpenAiRealtimeFunctionTool
   audioFormat?: OpenAiRealtimeAudioFormat
   maxOutputTokens?: number
 }) => {
@@ -107,12 +121,26 @@ export const buildRealtimeResponseCreate = ({
     instructions
   }
 
-  if (!outputModalities.includes("audio")) return { type: "response.create", response }
+  const responseWithStructuredOutput =
+    structuredOutputTool
+      ? {
+        ...response,
+        tools: [structuredOutputTool],
+        tool_choice: {
+          type: "function",
+          name: structuredOutputTool.name
+        }
+      }
+      : response
+
+  if (!outputModalities.includes("audio")) {
+    return { type: "response.create", response: responseWithStructuredOutput }
+  }
 
   return {
     type: "response.create",
     response: {
-      ...response,
+      ...responseWithStructuredOutput,
       audio: {
         output: {
           voice: audioVoice,
@@ -128,7 +156,7 @@ export const OpenAiTranslator = (): Translator => {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error("Missing OPENAI_API_KEY")
 
-  const model = "gpt-realtime-1.5"
+  const model = "gpt-realtime-2"
   const timeoutMs = 10000
   const defaultAudioVoice = "sage" // marin sage
   const defaultAudioFormat = defaultRealtimeAudioFormat
@@ -138,6 +166,7 @@ export const OpenAiTranslator = (): Translator => {
     instructions: string
     outputModalities: OpenAiRealtimeOutputModality[]
     audioVoice?: string
+    structuredOutputTool?: OpenAiRealtimeFunctionTool
     maxOutputTokens?: number
     resolveText?: (value: string) => void
     resolveAudio?: (value: Blob) => void
@@ -148,6 +177,7 @@ export const OpenAiTranslator = (): Translator => {
     startedAt: number
     timeout: ReturnType<typeof setTimeout>
     streamedText: string
+    streamedFunctionArguments: string
     streamedAudioChunks: string[]
     receivedDoneEvent: boolean
   }
@@ -202,6 +232,19 @@ export const OpenAiTranslator = (): Translator => {
     }
 
     const doneText = currentRequest.streamedText.trim()
+    const doneFunctionArguments = currentRequest.streamedFunctionArguments.trim()
+
+    if (currentRequest.structuredOutputTool) {
+      if (!doneFunctionArguments) {
+        currentRequest.reject(new Error("OpenAI realtime returned empty structured output"))
+        void processNextRequest()
+        return
+      }
+
+      currentRequest.resolveText?.(doneFunctionArguments)
+      void processNextRequest()
+      return
+    }
 
     if (!doneText) {
       currentRequest.reject(new Error("OpenAI realtime returned empty text output"))
@@ -262,6 +305,22 @@ export const OpenAiTranslator = (): Translator => {
     }
 
     if (
+      parsedEvent.type === "response.function_call_arguments.delta" &&
+      typeof parsedEvent.delta === "string"
+    ) {
+      activeRequest.streamedFunctionArguments += parsedEvent.delta
+      return
+    }
+
+    if (
+      parsedEvent.type === "response.function_call_arguments.done" &&
+      typeof parsedEvent.arguments === "string"
+    ) {
+      activeRequest.streamedFunctionArguments = parsedEvent.arguments
+      return
+    }
+
+    if (
       parsedEvent.type === "response.audio.delta" &&
       typeof parsedEvent.delta === "string"
     ) {
@@ -306,6 +365,11 @@ export const OpenAiTranslator = (): Translator => {
     const doneText = getResponseTextFromDoneEvent(parsedEvent)
     if (!activeRequest.streamedText.trim() && doneText) {
       activeRequest.streamedText = doneText
+    }
+
+    const doneFunctionArguments = getResponseFunctionArgumentsFromDoneEvent(parsedEvent)
+    if (!activeRequest.streamedFunctionArguments.trim() && doneFunctionArguments) {
+      activeRequest.streamedFunctionArguments = doneFunctionArguments
     }
 
     const inputTokens = getInputTokenCountFromDoneEvent(parsedEvent)
@@ -407,6 +471,7 @@ export const OpenAiTranslator = (): Translator => {
           instructions: activeRequest.instructions,
           outputModalities: activeRequest.outputModalities,
           audioVoice: activeRequest.audioVoice,
+          structuredOutputTool: activeRequest.structuredOutputTool,
           audioFormat: defaultAudioFormat,
           maxOutputTokens: activeRequest.maxOutputTokens || 1024
         })
@@ -436,6 +501,7 @@ export const OpenAiTranslator = (): Translator => {
         }
       }, timeoutMs),
       streamedText: "",
+      streamedFunctionArguments: "",
       streamedAudioChunks: [],
       receivedDoneEvent: false
     }
@@ -447,12 +513,17 @@ export const OpenAiTranslator = (): Translator => {
     }
   }
 
-  const runOpenAiRealtimeRequest = async (prompt: string, instructions: string) => {
+  const runOpenAiRealtimeRequest = async (
+    prompt: string,
+    instructions: string,
+    structuredOutputTool?: OpenAiRealtimeFunctionTool
+  ) => {
     return await new Promise<string>((resolve, reject) => {
       queuedRequests.push({
         prompt,
         instructions,
         outputModalities: ["text"],
+        structuredOutputTool,
         resolveText: resolve,
         maxOutputTokens: 1024,
         reject: (error) => reject(error)
@@ -482,7 +553,8 @@ export const OpenAiTranslator = (): Translator => {
     translate: async (text, targetLanguage) => {
       const rawText = await runOpenAiRealtimeRequest(
         text,
-        buildTranslationInstructions(targetLanguage)
+        buildTranslationInstructions(targetLanguage),
+        translationOutputTool
       )
 
       return parseStructuredTranslation(rawText)
@@ -498,7 +570,8 @@ export const OpenAiTranslator = (): Translator => {
 
       const rawText = await runOpenAiRealtimeRequest(
         JSON.stringify({ words: normalizedWords }),
-        buildDefinitionInstructions(targetLanguage, context.trim(), normalizedWords)
+        buildDefinitionInstructions(targetLanguage, context.trim(), normalizedWords),
+        definitionOutputTool
       )
 
       return parseStructuredDefinitions(rawText, normalizedWords).definitions
@@ -606,6 +679,16 @@ const getResponseTextFromDoneEvent = (event: OpenAiRealtimeServerEvent) => {
   )
 }
 
+const getResponseFunctionArgumentsFromDoneEvent = (event: OpenAiRealtimeServerEvent) => {
+  return (
+    event.response?.output
+      ?.filter((item) => typeof item.arguments === "string")
+      .map((item) => item.arguments || "")
+      .join("")
+      .trim() || ""
+  )
+}
+
 const getInputTokenCountFromDoneEvent = (event: OpenAiRealtimeServerEvent) => {
   const inputTokens = event.response?.usage?.input_tokens
 
@@ -630,12 +713,12 @@ const buildTranslationInstructions = (targetLanguage: string) => {
   return (
     `You are a translation engine. Translate from the user text into ${targetLanguage}.\n` +
     "Preserve meaning, tone, and formatting where possible.\n" +
-    "Only return a valid JSON array with this shape: [{\"word\":\"...\",\"literal\":\"...\", \"punctuation\":true|false}]\n" +
+    "Use the provided structured output tool with one pair for each translated word or punctuation token.\n" +
     "Each \"literal\" is a transliteration of the translated word.\n" +
     "For Chinese transliteration, use pinyin with tone marks.\n" +
     "For Chinese output, each word must be a complete Chinese word (can be multi-character).\n" +
-    "Do not include empty strings, markdown, code fences, or explanations.\n" +
-    "If the output cannot be produced, still return valid JSON with the expected shape."
+    "Do not include empty strings or explanations.\n" +
+    "If the output cannot be produced, still call the tool with the expected shape."
   )
 }
 
@@ -647,13 +730,13 @@ const buildDefinitionInstructions = (targetLanguage: string, sentence: string, w
     "Describe the etymology, usage, or grammar of each item.\n" +
     `The language of the words to define is ${targetLanguage}.\n` +
     `The surrounding context for the words is: "${sentence}"\n` +
-    "Return only valid JSON with exactly this shape: {\"definitions\":[{\"word\":\"...\",\"definition\":\"...\"}]}\n" +
+    "Use the provided structured output tool.\n" +
     "Return one object for each requested word.\n" +
     "Preserve the original word text exactly.\n" +
     `Keep the definition under 20 words.\n` +
-    (targetLanguage.startsWith("Chinese") ? "If a word is a single Chinese character, explain its component radicals.\n" : "") +
+    (targetLanguage.startsWith("Chinese") ? "When explaining a Chinese character, explain its component radicals in detail.\n" : "") +
     "Do not repeat the provided context.\n" +
-    "Do not include markdown or code fences."
+    "Do not include markdown."
   )
 }
 
@@ -699,13 +782,7 @@ export const parseStructuredDefinitions = (rawText: string, requestedWords: stri
     throw new Error("OpenAI returned invalid structured definitions JSON")
   }
 
-  const parsedDefinitions =
-    parsed &&
-      typeof parsed === "object" &&
-      "definitions" in parsed &&
-      Array.isArray(parsed.definitions)
-      ? parsed.definitions
-      : []
+  const parsedDefinitions = normalizeDefinitionArray(parsed)
 
   const normalizedDefinitions = parsedDefinitions
     .filter((value): value is { word?: unknown, definition?: unknown } => !!value && typeof value === "object")
@@ -730,3 +807,69 @@ export const parseStructuredDefinitions = (rawText: string, requestedWords: stri
 
   return { definitions }
 }
+
+const normalizeDefinitionArray = (parsed: unknown) => {
+  if (Array.isArray(parsed)) return parsed
+
+  if (!parsed || typeof parsed !== "object") return []
+
+  if ("definitions" in parsed && Array.isArray(parsed.definitions)) return parsed.definitions
+  if ("words" in parsed && Array.isArray(parsed.words)) return parsed.words
+  if ("items" in parsed && Array.isArray(parsed.items)) return parsed.items
+  if ("results" in parsed && Array.isArray(parsed.results)) return parsed.results
+
+  if ("word" in parsed && "definition" in parsed) return [parsed]
+
+  return []
+}
+
+export const translationOutputTool = {
+  type: "function",
+  name: "return_translation",
+  description: "Return translated word tokens and their transliterations.",
+  parameters: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      pairs: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            word: { type: "string" },
+            literal: { type: "string" },
+            punctuation: { type: "boolean" }
+          },
+          required: ["word", "literal", "punctuation"]
+        }
+      }
+    },
+    required: ["pairs"]
+  }
+} satisfies OpenAiRealtimeFunctionTool
+
+export const definitionOutputTool = {
+  type: "function",
+  name: "return_definitions",
+  description: "Return concise definitions for requested words.",
+  parameters: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      definitions: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            word: { type: "string" },
+            definition: { type: "string" }
+          },
+          required: ["word", "definition"]
+        }
+      }
+    },
+    required: ["definitions"]
+  }
+} satisfies OpenAiRealtimeFunctionTool

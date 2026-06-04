@@ -5,27 +5,27 @@
     "": {
       "name": "template",
       "devDependencies": {
-        "@piggo-translate/core": "0.1.1",
+        "@piggo-translate/core": "0.6.1",
         "bun-types": "1.3.9",
         "typescript": "^5.4.0",
       },
     },
     "api": {
       "name": "@piggo-translate/api",
-      "version": "0.1.1",
+      "version": "0.6.1",
       "dependencies": {
-        "@piggo-translate/core": "0.1.1",
+        "@piggo-translate/core": "0.6.1",
       },
     },
     "core": {
       "name": "@piggo-translate/core",
-      "version": "0.1.1",
+      "version": "0.6.1",
     },
     "web": {
       "name": "@piggo-translate/web",
-      "version": "0.1.1",
+      "version": "0.6.1",
       "dependencies": {
-        "@piggo-translate/core": "0.1.1",
+        "@piggo-translate/core": "0.6.1",
         "react": "^19.1.1",
         "react-dom": "^19.1.1",
       },
